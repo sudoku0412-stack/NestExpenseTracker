@@ -24,10 +24,18 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { ModalHeader } from '../components/ui/ModalHeader';
 import { Button } from '../components/ui/Button';
 import { getCustomCategories, resolveCategoryColor, type CustomCategory } from '../lib/customCategories';
-import { getAllReceipts, getAllIncomes, getCurrentHouseholdId } from '../lib/database';
+import {
+  getAllReceipts,
+  getAllIncomes,
+  getAllInvestmentAccounts,
+  getCurrentHouseholdId,
+} from '../lib/database';
 import { computeStats } from '../lib/dashboardStats';
 import { isInCalendarMonth } from '../lib/calendarDate';
 import { computeCashflow } from '../lib/cashflowStats';
+import { IncomeBreakdownCard } from '../components/ui/IncomeBreakdownCard';
+import { InvestmentSnapshotCard } from '../components/ui/InvestmentSnapshotCard';
+import type { InvestmentAccount } from '../types';
 import { computeBudgetDonut, BudgetDonutModel } from '../lib/budgetDonut';
 import { filterReceiptsInRange, receiptsToCsv } from '../lib/reports';
 import { generateReceiptsPdf, isPdfExportAvailable } from '../lib/pdfExport';
@@ -81,13 +89,14 @@ function ReportsScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
   const [budgetTotal, setBudgetTotal] = useState(0);
   const [customs, setCustoms] = useState<CustomCategory[]>([]);
+  const [investments, setInvestments] = useState<InvestmentAccount[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
       (async () => {
         const hid = getCurrentHouseholdId();
-        const [all, allIncomes, code, budgets, customList] = await Promise.all([
+        const [all, allIncomes, code, budgets, customList, accounts] = await Promise.all([
           getAllReceipts(),
           getAllIncomes(),
           getCurrency(),
@@ -95,9 +104,13 @@ function ReportsScreen({ embedded = false }: { embedded?: boolean } = {}) {
           hid
             ? getCustomCategories(hid).catch(() => [] as CustomCategory[])
             : Promise.resolve([] as CustomCategory[]),
+          Promise.resolve()
+        .then(() => getAllInvestmentAccounts())
+        .catch(() => [] as InvestmentAccount[]),
         ]);
         if (!mounted) return;
         setCustoms(customList);
+        setInvestments(accounts);
         setReceipts(all);
         setIncomes(allIncomes);
         if (code) setCurrency(code as CurrencyCode);
@@ -312,6 +325,9 @@ function ReportsScreen({ embedded = false }: { embedded?: boolean } = {}) {
             theme={theme}
             customs={customs}
           />
+
+          <IncomeBreakdownCard cashflow={cashflow} currency={currency} />
+          {isPremium ? <InvestmentSnapshotCard accounts={investments} currency={currency} /> : null}
 
           {/* Empty state */}
           {monthReceipts.length === 0 && (

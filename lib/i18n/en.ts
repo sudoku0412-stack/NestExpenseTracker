@@ -33,6 +33,7 @@ export const en = {
   spent: 'Spent',
   net: 'Net',
   whereItWent: 'Where it went',
+  whereItCameFrom: 'Where it came from',
   recurring2: 'Recurring',
   balances: 'Balances',
   incomes: 'Incomes',
