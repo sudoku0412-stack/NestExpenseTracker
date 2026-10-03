@@ -11,6 +11,7 @@ import {
   getIncomesByMonth,
   getReceiptsByMonth,
   getReviewQueueCount,
+  getAllInvestmentAccounts,
 } from '../../lib/database';
 import { getCategoryBudgets, getCurrency } from '../../lib/secureStorage';
 import { checkBudgetsAndNotify } from '../../lib/notifications';
@@ -25,6 +26,9 @@ import { useStyles, useTheme } from '../../constants/theme';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { computeStats } from '../../lib/dashboardStats';
 import { computeCashflow } from '../../lib/cashflowStats';
+import { IncomeBreakdownCard } from '../../components/ui/IncomeBreakdownCard';
+import { InvestmentSnapshotCard } from '../../components/ui/InvestmentSnapshotCard';
+import type { InvestmentAccount } from '../../types';
 import { RECURRING_BUDGET_KEY } from '../../lib/recurring';
 import { computeBudgetSpend } from '../../lib/budgetSpend';
 import { useAuth } from '../../lib/AuthContext';
@@ -608,6 +612,7 @@ export default function DashboardScreen() {
     byMember: [],
     byCategory: [],
   });
+  const [investments, setInvestments] = useState<InvestmentAccount[]>([]);
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [lastMonthTotal, setLastMonthTotal] = useState<number | null>(null);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
@@ -624,7 +629,7 @@ export default function DashboardScreen() {
     const householdId = getCurrentHouseholdId();
     const year = viewedMonth.getFullYear();
     const month = viewedMonth.getMonth() + 1;
-    const [data, incomes, prevData, budgetMap, currencyCode, memberList, goals, toReview, customs] = await Promise.all([
+    const [data, incomes, prevData, budgetMap, currencyCode, memberList, goals, toReview, customs, accounts] = await Promise.all([
       getReceiptsByMonth(year, month),
       getIncomesByMonth(year, month),
       getReceiptsByMonth(prevMonth.getFullYear(), prevMonth.getMonth() + 1),
@@ -640,8 +645,12 @@ export default function DashboardScreen() {
       householdId
         ? getCustomCategories(householdId).catch(() => [] as CustomCategory[])
         : Promise.resolve([] as CustomCategory[]),
+      Promise.resolve()
+        .then(() => getAllInvestmentAccounts())
+        .catch(() => [] as InvestmentAccount[]),
     ]);
     setReceipts(data);
+    setInvestments(accounts);
     setStats(computeStats(data));
     setCashflow(computeCashflow(incomes, data));
     setLastMonthTotal(prevData.reduce((s, r) => s + r.totalAmount, 0));
@@ -976,6 +985,16 @@ export default function DashboardScreen() {
             ) : null}
           </View>
         </View>
+
+        <IncomeBreakdownCard cashflow={cashflow} currency={currency} />
+
+        {isPremium ? (
+          <InvestmentSnapshotCard
+            accounts={investments}
+            currency={currency}
+            onPress={() => router.push('/investments' as never)}
+          />
+        ) : null}
 
         {/* "Where it went" category composition bar */}
         {stats.categories.length > 0 && (
