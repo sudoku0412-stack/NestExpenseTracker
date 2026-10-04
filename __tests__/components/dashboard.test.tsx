@@ -504,7 +504,7 @@ describe('DashboardScreen', () => {
     expect(screen.queryByText('Add manually')).toBeNull();
   });
 
-  it('lists each earner on its own row instead of a jammed one-liner', async () => {
+  it('slices the income bar by earner, naming each with their share', async () => {
     mockGetHouseholdMembers.mockResolvedValue([
       { uid: 'uid-self', displayName: 'Alex', isYou: true },
       { uid: 'uid-partner', displayName: 'Sudesna Karak', isYou: false },
@@ -535,11 +535,9 @@ describe('DashboardScreen', () => {
     render(<DashboardScreen />);
 
     await waitFor(() => {
-      expect(screen.getByText('You')).toBeTruthy();
+      expect(screen.getByText('You 53%')).toBeTruthy();
     });
-    expect(screen.getByText('Sudesna Karak')).toBeTruthy();
-    expect(screen.getByText('$7200.00')).toBeTruthy();
-    expect(screen.getByText('$6400.00')).toBeTruthy();
+    expect(screen.getByText('Sudesna Karak 47%')).toBeTruthy();
     expect(screen.queryByText(/Tap earned for all incomes/)).toBeNull();
   });
 });
