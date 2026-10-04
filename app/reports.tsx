@@ -33,8 +33,7 @@ import {
 import { computeStats } from '../lib/dashboardStats';
 import { isInCalendarMonth } from '../lib/calendarDate';
 import { computeCashflow } from '../lib/cashflowStats';
-import { IncomeBreakdownCard } from '../components/ui/IncomeBreakdownCard';
-import { InvestmentSnapshotCard } from '../components/ui/InvestmentSnapshotCard';
+import { EarningsInvestmentsCard } from '../components/ui/EarningsInvestmentsCard';
 import type { InvestmentAccount } from '../types';
 import { computeBudgetDonut, BudgetDonutModel } from '../lib/budgetDonut';
 import { filterReceiptsInRange, receiptsToCsv } from '../lib/reports';
@@ -326,8 +325,11 @@ function ReportsScreen({ embedded = false }: { embedded?: boolean } = {}) {
             customs={customs}
           />
 
-          <IncomeBreakdownCard cashflow={cashflow} currency={currency} />
-          {isPremium ? <InvestmentSnapshotCard accounts={investments} currency={currency} /> : null}
+          <EarningsInvestmentsCard
+            cashflow={cashflow}
+            accounts={isPremium ? investments : []}
+            currency={currency}
+          />
 
           {/* Empty state */}
           {monthReceipts.length === 0 && (

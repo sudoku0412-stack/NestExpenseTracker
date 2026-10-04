@@ -26,8 +26,7 @@ import { useStyles, useTheme } from '../../constants/theme';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { computeStats } from '../../lib/dashboardStats';
 import { computeCashflow } from '../../lib/cashflowStats';
-import { IncomeBreakdownCard } from '../../components/ui/IncomeBreakdownCard';
-import { InvestmentSnapshotCard } from '../../components/ui/InvestmentSnapshotCard';
+import { EarningsInvestmentsCard } from '../../components/ui/EarningsInvestmentsCard';
 import type { InvestmentAccount } from '../../types';
 import { RECURRING_BUDGET_KEY } from '../../lib/recurring';
 import { computeBudgetSpend } from '../../lib/budgetSpend';
@@ -986,15 +985,12 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <IncomeBreakdownCard cashflow={cashflow} currency={currency} />
-
-        {isPremium ? (
-          <InvestmentSnapshotCard
-            accounts={investments}
-            currency={currency}
-            onPress={() => router.push('/investments' as never)}
-          />
-        ) : null}
+        <EarningsInvestmentsCard
+          cashflow={cashflow}
+          accounts={isPremium ? investments : []}
+          currency={currency}
+          onPressInvestments={() => router.push('/investments' as never)}
+        />
 
         {/* "Where it went" category composition bar */}
         {stats.categories.length > 0 && (
