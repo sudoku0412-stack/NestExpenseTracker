@@ -24,6 +24,8 @@ const Keys = {
   // read even though the legacy data was never meant for it.
   legacyBudgetsMigrated: 'bs.budgets.legacyMigrated',
   themePreference: 'bs.theme.preference',
+  // Last app version whose "What's new" tour was shown (or skipped past).
+  whatsNewSeenVersion: 'bs.whatsNew.seenVersion',
   languagePreference: 'bs.language.preference',
   // Free-tier AI-parse quota (lib/entitlements.ts). Suffixed per uid AND
   // per calendar month (`.${uid}.${yyyy-MM}`) so the count naturally
@@ -39,6 +41,14 @@ export async function getOnboardingSeen(): Promise<boolean> {
 
 export async function setOnboardingSeen(): Promise<void> {
   await SecureStore.setItemAsync(Keys.onboardingSeen, '1');
+}
+
+export async function getWhatsNewSeenVersion(): Promise<string | null> {
+  return await SecureStore.getItemAsync(Keys.whatsNewSeenVersion);
+}
+
+export async function setWhatsNewSeenVersion(version: string): Promise<void> {
+  await SecureStore.setItemAsync(Keys.whatsNewSeenVersion, version);
 }
 
 export async function getCloudMigrationDone(uid: string): Promise<boolean> {

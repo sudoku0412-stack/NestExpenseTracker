@@ -31,6 +31,7 @@ import type { InvestmentAccount } from '../../types';
 import { RECURRING_BUDGET_KEY } from '../../lib/recurring';
 import { computeBudgetSpend } from '../../lib/budgetSpend';
 import { useAuth } from '../../lib/AuthContext';
+import { WhatsNewModal } from '../../components/WhatsNewModal';
 import { useEntitlements } from '../../lib/EntitlementsContext';
 import type { Profile } from '../../lib/profile';
 import { onLocalDataChanged } from '../../lib/dataSync';
@@ -746,6 +747,7 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <WhatsNewModal />
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.content}

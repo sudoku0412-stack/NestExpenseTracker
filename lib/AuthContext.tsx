@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
+import { currentAppVersion } from './whatsNew';
 // Deliberately the plain lib/entitlements.ts functions, NOT
 // EntitlementsContext's useEntitlements() hook — EntitlementsProvider
 // is nested INSIDE AuthProvider (it needs the signed-in uid), so a
@@ -55,6 +56,7 @@ import {
   getOnboardingSeen,
   migrateLegacyBudgetsToHousehold,
   setOnboardingSeen as persistOnboardingSeen,
+  setWhatsNewSeenVersion,
   resetAllSecureStorage,
 } from './secureStorage';
 import { processRecurringIncomes, processRecurringReceipts } from './recurring';
@@ -575,6 +577,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       onboardingSeen,
       markOnboardingSeen: async () => {
         await persistOnboardingSeen();
+        // A brand-new user just saw the full tour; don't also show them
+        // the current release's "What's new".
+        try {
+          await setWhatsNewSeenVersion(currentAppVersion());
+        } catch {
+          // best effort: worst case a new user sees the tour once
+        }
         setOnboardingSeenState(true);
       },
       ensureProfile: async (firstName: string, lastName: string) => {

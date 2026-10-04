@@ -81,7 +81,9 @@ jest.mock('../../lib/cloudSync', () => ({
   setPhoneIndex: jest.fn(async () => {}),
 }));
 
+const mockSetWhatsNewSeen = jest.fn(async (_v: string) => {});
 jest.mock('../../lib/secureStorage', () => ({
+  setWhatsNewSeenVersion: (v: string) => mockSetWhatsNewSeen(v),
   getOnboardingSeen: jest.fn(async () => false),
   migrateLegacyBudgetsToHousehold: jest.fn(async () => {}),
   setOnboardingSeen: jest.fn(async () => {}),
@@ -695,7 +697,9 @@ describe('AuthProvider profile + account actions', () => {
 
     fireEvent.press(screen.getByTestId('btn-onboard'));
     await waitFor(() => expect(mockSetOnboardingSeen).toHaveBeenCalled());
-    expect(screen.getByTestId('onboardingSeen').props.children).toBe('true');
+    await waitFor(() => expect(screen.getByTestId('onboardingSeen').props.children).toBe('true'));
+    // new users skip the current release's What's new
+    expect(mockSetWhatsNewSeen).toHaveBeenCalled();
 
     fireEvent.press(screen.getByTestId('btn-edit-on'));
     expect(screen.getByTestId('editInProgress').props.children).toBe('true');
