@@ -8,6 +8,8 @@ import { gainLabel, INVESTMENT_KIND_KEYS, summarizeInvestments } from '../../lib
 import type { HouseholdMember } from '../../lib/cloudSync';
 import type { CashflowStats, IncomeCategory, InvestmentAccount, InvestmentKind } from '../../types';
 
+const PERSON_COLORS = ['#4F8EF7', '#E9738A', '#F2B544', '#2DB5A3', '#9B6BF2', '#3DBE6C', '#8E96AA'];
+
 const KIND_COLORS: Record<InvestmentKind, string> = {
   stocks: '#4F8EF7',
   etf: '#9B6BF2',
@@ -60,26 +62,7 @@ const makeStyles = (t: Theme) => ({
     fontSize: t.font.xs,
     color: t.colors.textSecondary,
   },
-  members: {
-    gap: 8,
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: t.colors.border,
-  },
-  memberRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'space-between' as const,
-    gap: 12,
-  },
-  memberName: {
-    flex: 1,
-    fontFamily: t.fonts.body.medium,
-    fontSize: t.font.sm,
-    color: t.colors.textSecondary,
-  },
-  memberAmt: { fontFamily: t.fonts.mono.medium, fontSize: t.font.sm, color: t.colors.textPrimary },
+  typeLine: { marginTop: 6, fontFamily: t.fonts.body.regular, fontSize: t.font.xs, color: t.colors.textMuted },
   gain: { marginTop: 8, fontFamily: t.fonts.mono.medium, fontSize: t.font.xs },
 });
 
@@ -111,6 +94,21 @@ export function EarningsInvestmentsCard({
   const earned = cashflow.totalEarned;
   const incomeRows = earned > 0 ? cashflow.byCategory : [];
 
+  // With two or more earners the income bar is sliced by person; otherwise
+  // (solo, or names not loaded yet) by income type.
+  const people =
+    cashflow.byMember.length > 1 && members.length > 0
+      ? cashflow.byMember.map((m, i) => {
+          const member = members.find((x) => x.uid === m.earnedBy);
+          const name = member?.isYou
+            ? t('you')
+            : member?.displayName?.trim() ||
+              member?.email?.trim() ||
+              (m.earnedBy.length > 8 ? `${m.earnedBy.slice(0, 6)}…` : m.earnedBy);
+          return { ...m, name, color: PERSON_COLORS[i % PERSON_COLORS.length] };
+        })
+      : null;
+
   const summary = summarizeInvestments(accounts);
   const byKind = new Map<InvestmentKind, number>();
   for (const a of accounts) byKind.set(a.kind, (byKind.get(a.kind) ?? 0) + a.valueUsd);
@@ -141,54 +139,58 @@ export function EarningsInvestmentsCard({
             <Text style={styles.note}>{t('amountTotal', { amount: formatCurrency(earned, currency) })}</Text>
           </TouchableOpacity>
           <View style={styles.bar}>
-            {incomeRows.map((c) => (
-              <View
-                key={c.category}
-                style={{
-                  flex: Math.max(c.total, 0.001),
-                  backgroundColor: incomeCategoryColor(c.category, theme.colors.accent),
-                }}
-              />
-            ))}
+            {people
+              ? people.map((m) => (
+                  <View key={m.earnedBy} style={{ flex: Math.max(m.total, 0.001), backgroundColor: m.color }} />
+                ))
+              : incomeRows.map((c) => (
+                  <View
+                    key={c.category}
+                    style={{
+                      flex: Math.max(c.total, 0.001),
+                      backgroundColor: incomeCategoryColor(c.category, theme.colors.accent),
+                    }}
+                  />
+                ))}
           </View>
-          <View style={styles.legend}>
-            {incomeRows.map((c) => (
-              <View key={c.category} style={styles.legendItem} testID={`earnings-income-${c.category}`}>
-                <View style={[styles.dot, { backgroundColor: incomeCategoryColor(c.category, theme.colors.accent) }]} />
-                <Text style={styles.legendText}>
-                  {incomeCategoryLabel(c.category as IncomeCategory)} {Math.round((c.total / earned) * 100)}%
-                </Text>
-              </View>
-            ))}
-          </View>
-          {cashflow.byMember.length > 1 && members.length > 0 ? (
-            <View style={styles.members} testID="earnings-members">
-              {cashflow.byMember.map((m) => {
-                const member = members.find((x) => x.uid === m.earnedBy);
-                const name = member?.isYou
-                  ? t('you')
-                  : member?.displayName?.trim() ||
-                    member?.email?.trim() ||
-                    (m.earnedBy.length > 8 ? `${m.earnedBy.slice(0, 6)}…` : m.earnedBy);
-                return (
+          {people ? (
+            <>
+              <View style={styles.legend} testID="earnings-members">
+                {people.map((m) => (
                   <TouchableOpacity
                     key={m.earnedBy}
                     testID={`earnings-member-${m.earnedBy}`}
                     onPress={() => onPressIncome?.(m.earnedBy)}
                     disabled={!onPressIncome}
                     accessibilityRole="button"
-                    accessibilityLabel={t('incomeOfName', { name })}
-                    style={styles.memberRow}
+                    accessibilityLabel={t('incomeOfName', { name: m.name })}
+                    style={styles.legendItem}
                   >
-                    <Text style={styles.memberName} numberOfLines={1}>
-                      {name}
+                    <View style={[styles.dot, { backgroundColor: m.color }]} />
+                    <Text style={styles.legendText}>
+                      {m.name} {Math.round((m.total / earned) * 100)}%
                     </Text>
-                    <Text style={styles.memberAmt}>{formatCurrency(m.total, currency)}</Text>
                   </TouchableOpacity>
-                );
-              })}
+                ))}
+              </View>
+              <Text style={styles.typeLine} testID="earnings-types">
+                {incomeRows
+                  .map((c) => `${incomeCategoryLabel(c.category as IncomeCategory)} ${Math.round((c.total / earned) * 100)}%`)
+                  .join(' · ')}
+              </Text>
+            </>
+          ) : (
+            <View style={styles.legend}>
+              {incomeRows.map((c) => (
+                <View key={c.category} style={styles.legendItem} testID={`earnings-income-${c.category}`}>
+                  <View style={[styles.dot, { backgroundColor: incomeCategoryColor(c.category, theme.colors.accent) }]} />
+                  <Text style={styles.legendText}>
+                    {incomeCategoryLabel(c.category as IncomeCategory)} {Math.round((c.total / earned) * 100)}%
+                  </Text>
+                </View>
+              ))}
             </View>
-          ) : null}
+          )}
         </View>
       ) : null}
 

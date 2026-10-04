@@ -83,7 +83,7 @@ describe('EarningsInvestmentsCard', () => {
     expect(screen.queryByTestId('earnings-investments')).toBeNull();
   });
 
-  it('lists who earned what and opens that person\'s incomes on tap', () => {
+  it('slices the income bar by person and opens that person\'s incomes on tap', () => {
     const onPressIncome = jest.fn();
     const two = computeCashflow(
       [
@@ -104,9 +104,9 @@ describe('EarningsInvestmentsCard', () => {
         onPressIncome={onPressIncome}
       />,
     );
-    expect(screen.getByText('You')).toBeTruthy();
-    expect(screen.getByText('Sudesna Karak')).toBeTruthy();
-    expect(screen.getByText('$3600.00')).toBeTruthy();
+    expect(screen.getByText('You 53%')).toBeTruthy();
+    expect(screen.getByText('Sudesna Karak 47%')).toBeTruthy();
+    expect(screen.getByTestId('earnings-types')).toHaveTextContent('Salary 100%');
     fireEvent.press(screen.getByTestId('earnings-member-uid-partner'));
     expect(onPressIncome).toHaveBeenLastCalledWith('uid-partner');
     fireEvent.press(screen.getByTestId('earnings-income-head'));
