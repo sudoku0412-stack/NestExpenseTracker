@@ -5,6 +5,7 @@ import { incomeCategoryColor, incomeCategoryLabel } from '../../constants/income
 import { formatCurrency, type CurrencyCode } from '../../lib/currency';
 import { useT } from '../../lib/I18nContext';
 import { gainLabel, INVESTMENT_KIND_KEYS, summarizeInvestments } from '../../lib/investments';
+import type { HouseholdMember } from '../../lib/cloudSync';
 import type { CashflowStats, IncomeCategory, InvestmentAccount, InvestmentKind } from '../../types';
 
 const KIND_COLORS: Record<InvestmentKind, string> = {
@@ -59,6 +60,26 @@ const makeStyles = (t: Theme) => ({
     fontSize: t.font.xs,
     color: t.colors.textSecondary,
   },
+  members: {
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: t.colors.border,
+  },
+  memberRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    gap: 12,
+  },
+  memberName: {
+    flex: 1,
+    fontFamily: t.fonts.body.medium,
+    fontSize: t.font.sm,
+    color: t.colors.textSecondary,
+  },
+  memberAmt: { fontFamily: t.fonts.mono.medium, fontSize: t.font.sm, color: t.colors.textPrimary },
   gain: { marginTop: 8, fontFamily: t.fonts.mono.medium, fontSize: t.font.xs },
 });
 
@@ -70,11 +91,17 @@ export function EarningsInvestmentsCard({
   cashflow,
   accounts,
   currency,
+  members = [],
+  onPressIncome,
   onPressInvestments,
 }: {
   cashflow: CashflowStats;
   accounts: InvestmentAccount[];
   currency: CurrencyCode;
+  /** Household members, used to name each earner. */
+  members?: HouseholdMember[];
+  /** Opens the incomes page: for one earner when `earnedBy` is given, else all. */
+  onPressIncome?: (earnedBy?: string) => void;
   onPressInvestments?: () => void;
 }) {
   const t = useT();
@@ -103,10 +130,16 @@ export function EarningsInvestmentsCard({
 
       {incomeRows.length > 0 ? (
         <View testID="earnings-income">
-          <View style={styles.head}>
+          <TouchableOpacity
+            testID="earnings-income-head"
+            onPress={() => onPressIncome?.()}
+            disabled={!onPressIncome}
+            accessibilityRole="button"
+            style={styles.head}
+          >
             <Text style={styles.legendText}>{t('income')}</Text>
             <Text style={styles.note}>{t('amountTotal', { amount: formatCurrency(earned, currency) })}</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.bar}>
             {incomeRows.map((c) => (
               <View
@@ -128,6 +161,34 @@ export function EarningsInvestmentsCard({
               </View>
             ))}
           </View>
+          {cashflow.byMember.length > 1 && members.length > 0 ? (
+            <View style={styles.members} testID="earnings-members">
+              {cashflow.byMember.map((m) => {
+                const member = members.find((x) => x.uid === m.earnedBy);
+                const name = member?.isYou
+                  ? t('you')
+                  : member?.displayName?.trim() ||
+                    member?.email?.trim() ||
+                    (m.earnedBy.length > 8 ? `${m.earnedBy.slice(0, 6)}…` : m.earnedBy);
+                return (
+                  <TouchableOpacity
+                    key={m.earnedBy}
+                    testID={`earnings-member-${m.earnedBy}`}
+                    onPress={() => onPressIncome?.(m.earnedBy)}
+                    disabled={!onPressIncome}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('incomeOfName', { name })}
+                    style={styles.memberRow}
+                  >
+                    <Text style={styles.memberName} numberOfLines={1}>
+                      {name}
+                    </Text>
+                    <Text style={styles.memberAmt}>{formatCurrency(m.total, currency)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : null}
         </View>
       ) : null}
 
