@@ -81,14 +81,20 @@ jest.mock('../../lib/secureStorage', () => ({
   getCurrency: jest.fn(async () => 'USD'),
 }));
 
+jest.mock('../../lib/customCategories', () => ({
+  ...jest.requireActual('../../lib/customCategories'),
+  getCustomCategories: jest.fn(async () => [{ name: 'Subscriptions', color: '#D6336C' }]),
+}));
+
 jest.mock('uuid', () => ({
   v4: () => 'mock-uuid',
 }));
 
 import EditReceiptScreen from '../../app/edit/[id]';
-import { getReceiptById } from '../../lib/database';
+import { getReceiptById, updateReceipt } from '../../lib/database';
 
 const mockGetReceiptById = getReceiptById as jest.Mock;
+const mockUpdateReceipt = updateReceipt as jest.Mock;
 
 function makeReceipt(overrides: Partial<Receipt>): Receipt {
   return {
@@ -151,5 +157,30 @@ describe('EditReceiptScreen (smoke test)', () => {
     );
     render(<EditReceiptScreen />);
     await waitFor(() => expect(screen.getByDisplayValue('92.00')).toBeTruthy());
+  });
+
+  it('offers household custom categories and saves one as the primary category', async () => {
+    mockGetReceiptById.mockResolvedValue(
+      makeReceipt({ category: 'Dining', categoryTags: ['Dining'] }),
+    );
+    render(<EditReceiptScreen />);
+    await waitFor(() => expect(screen.getByText('Your categories')).toBeTruthy());
+    fireEvent.press(screen.getByText('Subscriptions'));
+    fireEvent.press(screen.getByText('Save Changes'));
+    await waitFor(() => expect(mockUpdateReceipt).toHaveBeenCalled());
+    const saved = mockUpdateReceipt.mock.calls[0][0];
+    expect(saved.category).toBe('Subscriptions');
+    expect(saved.categoryTags[0]).toBe('Subscriptions');
+  });
+
+  it('does not promote a free-text tag that is not a household custom category', async () => {
+    mockGetReceiptById.mockResolvedValue(
+      makeReceipt({ category: 'Dining', categoryTags: ['Pet Food'] }),
+    );
+    render(<EditReceiptScreen />);
+    await waitFor(() => expect(screen.getByDisplayValue('Coffee Shop')).toBeTruthy());
+    fireEvent.press(screen.getByText('Save Changes'));
+    await waitFor(() => expect(mockUpdateReceipt).toHaveBeenCalled());
+    expect(mockUpdateReceipt.mock.calls[0][0].category).toBe('Dining');
   });
 });

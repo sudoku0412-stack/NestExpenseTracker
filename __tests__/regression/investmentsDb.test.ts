@@ -123,6 +123,21 @@ describe('investment accounts', () => {
     expect(await getInvestmentAccountById('a1')).toBeNull();
   });
 
+  it('refuses unsigned reads and writes', async () => {
+    await setCurrentUserId(null);
+    await expect(saveInvestmentAccount(account())).rejects.toThrow(/No authenticated user/);
+    await expect(getAllInvestmentAccounts()).rejects.toThrow(/No authenticated user/);
+    await expect(getInvestmentAccountById('a1')).rejects.toThrow(/No authenticated user/);
+    await expect(addInvestmentSnapshot({
+      id: 's1',
+      accountId: 'a1',
+      date: '2026-01-01',
+      valueUsd: 1,
+      contributedUsd: 1,
+      createdAt: '',
+    })).rejects.toThrow(/No authenticated user/);
+  });
+
   it('never syncs to the cloud or household (user-scoped SQL only)', async () => {
     await saveInvestmentAccount(account());
     const insert = mockRuns.find((r) => /INSERT OR REPLACE INTO investment_accounts/i.test(r.sql))!;

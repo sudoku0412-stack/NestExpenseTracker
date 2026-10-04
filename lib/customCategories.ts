@@ -61,7 +61,7 @@ let lastLoaded: CustomCategory[] = [];
 /** Most recently loaded custom categories (may be empty before the first
  *  load). Safe to call during render; not a source of truth. */
 export function cachedCustomCategories(): CustomCategory[] {
-  return lastLoaded;
+  return lastLoaded.slice();
 }
 
 export async function getCustomCategories(householdId: string): Promise<CustomCategory[]> {

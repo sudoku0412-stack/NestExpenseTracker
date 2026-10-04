@@ -24,9 +24,15 @@ import {
   setCustomCategoriesSynced,
   removeCustomCategory,
   resolveCategoryColor,
+  cachedCustomCategories,
 } from '../lib/customCategories';
 
-beforeEach(() => store.clear());
+beforeEach(async () => {
+  store.clear();
+  // lastLoaded is process-global; an empty household read resets it so
+  // tests do not leak the previous case's palette into list-row lookups.
+  await getCustomCategories('__reset__');
+});
 
 describe('addCustomCategory', () => {
   it('trims, collapses whitespace, persists, and assigns a palette color', async () => {
@@ -91,6 +97,32 @@ describe('getCustomCategories resilience', () => {
     expect(await getCustomCategories('h1')).toEqual([]);
     store.set('bs.customCategories.h1', JSON.stringify([{ name: 1 }, { name: 'ok', color: '#fff' }]));
     expect(await getCustomCategories('h1')).toEqual([{ name: 'ok', color: '#fff' }]);
+  });
+});
+
+describe('cachedCustomCategories', () => {
+  it('is empty before the first real household load', () => {
+    expect(cachedCustomCategories()).toEqual([]);
+  });
+
+  it('mirrors the last successful read or write so list rows can resolve colors sync', async () => {
+    const added = await addCustomCategory('h1', 'Pets');
+    expect(added.ok).toBe(true);
+    if (!added.ok) return;
+    expect(cachedCustomCategories()).toEqual([added.added]);
+
+    await getCustomCategories('h2');
+    expect(cachedCustomCategories()).toEqual([]);
+
+    expect(await getCustomCategories('h1')).toEqual([added.added]);
+    expect(cachedCustomCategories()).toEqual([added.added]);
+  });
+
+  it('does not expose a live mutable reference to the in-memory cache', async () => {
+    await addCustomCategory('h1', 'Pets');
+    const snapshot = cachedCustomCategories();
+    snapshot.push({ name: 'Hacked', color: '#000' });
+    expect(cachedCustomCategories().map((c) => c.name)).toEqual(['Pets']);
   });
 });
 
