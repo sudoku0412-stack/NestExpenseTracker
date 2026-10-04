@@ -55,7 +55,7 @@ export function Skeleton({
   );
 }
 
-/** Pre-built skeleton card matching the ReceiptCard layout. */
+/** Pre-built skeleton card for a receipt row. */
 export function ReceiptCardSkeleton() {
   const theme = useTheme();
   return (
