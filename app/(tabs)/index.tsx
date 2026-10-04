@@ -315,30 +315,6 @@ export default function DashboardScreen() {
       fontFamily: t.fonts.mono.medium,
       fontSize: 13,
     },
-    cashflowMembers: {
-      gap: 8,
-      marginTop: 4,
-      paddingTop: 8,
-      borderTopWidth: 1,
-      borderTopColor: 'rgba(255,255,255,0.1)',
-    },
-    cashflowMemberRow: {
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      justifyContent: 'space-between' as const,
-      gap: 12,
-    },
-    cashflowMemberName: {
-      flex: 1,
-      color: 'rgba(255,255,255,0.72)',
-      fontFamily: t.fonts.body.medium,
-      fontSize: 12,
-    },
-    cashflowMemberAmt: {
-      color: '#fff',
-      fontFamily: t.fonts.mono.medium,
-      fontSize: 12,
-    },
     cashflowInvested: {
       color: 'rgba(255,255,255,0.55)',
       fontFamily: t.fonts.body.regular,
@@ -944,46 +920,6 @@ export default function DashboardScreen() {
                   : ''}
               </Text>
             ) : null}
-            {cashflow.byMember.length > 1 ? (
-              <View style={styles.cashflowMembers}>
-                {cashflow.byMember.map((m) => {
-                  const member = members.find((x) => x.uid === m.earnedBy);
-                  const name =
-                    member?.isYou
-                      ? t('you')
-                      : member?.displayName?.trim() ||
-                        member?.email?.trim() ||
-                        (m.earnedBy.length > 8
-                          ? `${m.earnedBy.slice(0, 6)}…`
-                          : m.earnedBy);
-                  return (
-                    <TouchableOpacity
-                      key={m.earnedBy}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/incomes',
-                          params: {
-                            earnedBy: m.earnedBy,
-                            year: String(viewedMonth.getFullYear()),
-                            month: String(viewedMonth.getMonth() + 1),
-                          },
-                        })
-                      }
-                      accessibilityRole="button"
-                      accessibilityLabel={t('incomeOfName', { name })}
-                      style={styles.cashflowMemberRow}
-                    >
-                      <Text style={styles.cashflowMemberName} numberOfLines={1}>
-                        {name}
-                      </Text>
-                      <Text style={styles.cashflowMemberAmt}>
-                        {formatCurrency(m.total, currency)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : null}
           </View>
         </View>
 
@@ -991,6 +927,17 @@ export default function DashboardScreen() {
           cashflow={cashflow}
           accounts={isPremium ? investments : []}
           currency={currency}
+          members={members}
+          onPressIncome={(earnedBy) =>
+            router.push({
+              pathname: '/incomes',
+              params: {
+                ...(earnedBy ? { earnedBy } : {}),
+                year: String(viewedMonth.getFullYear()),
+                month: String(viewedMonth.getMonth() + 1),
+              },
+            })
+          }
           onPressInvestments={() => router.push('/investments' as never)}
         />
 

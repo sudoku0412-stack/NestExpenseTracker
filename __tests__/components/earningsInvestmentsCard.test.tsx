@@ -82,4 +82,39 @@ describe('EarningsInvestmentsCard', () => {
     wrap(<EarningsInvestmentsCard cashflow={computeCashflow([], [])} accounts={[]} currency="USD" />);
     expect(screen.queryByTestId('earnings-investments')).toBeNull();
   });
+
+  it('lists who earned what and opens that person\'s incomes on tap', () => {
+    const onPressIncome = jest.fn();
+    const two = computeCashflow(
+      [
+        { ...income('a', 'Salary', 3600), earnedBy: 'uid-me' },
+        { ...income('b', 'Salary', 3200), earnedBy: 'uid-partner' },
+      ],
+      [],
+    );
+    wrap(
+      <EarningsInvestmentsCard
+        cashflow={two}
+        accounts={[]}
+        currency="USD"
+        members={[
+          { uid: 'uid-me', displayName: 'Kaushik', isYou: true },
+          { uid: 'uid-partner', displayName: 'Sudesna Karak', isYou: false },
+        ] as never}
+        onPressIncome={onPressIncome}
+      />,
+    );
+    expect(screen.getByText('You')).toBeTruthy();
+    expect(screen.getByText('Sudesna Karak')).toBeTruthy();
+    expect(screen.getByText('$3600.00')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('earnings-member-uid-partner'));
+    expect(onPressIncome).toHaveBeenLastCalledWith('uid-partner');
+    fireEvent.press(screen.getByTestId('earnings-income-head'));
+    expect(onPressIncome).toHaveBeenLastCalledWith();
+  });
+
+  it('single earner shows no member rows', () => {
+    wrap(<EarningsInvestmentsCard cashflow={cash} accounts={[]} currency="USD" members={[] as never} />);
+    expect(screen.queryByTestId('earnings-members')).toBeNull();
+  });
 });
