@@ -35,7 +35,7 @@ export const fr: Record<keyof typeof en, string> = {
   spent: 'Dépensé',
   net: 'Net',
   whereItWent: 'Où est passé l\'argent',
-  whereItCameFrom: 'D\'où ça vient',
+  earningsAndInvestments: 'Revenus et placements',
   recurring2: 'Récurrents',
   balances: 'Soldes',
   incomes: 'Revenus',
