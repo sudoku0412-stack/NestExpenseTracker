@@ -621,8 +621,7 @@ export default function ScanScreen() {
       fontSize: t.font.xs,
       fontFamily: t.fonts.body.regular,
     },
-    // Item add/edit modal — centered card, same visual language as
-    // components/ui/DatePickerModal.tsx.
+    // Item add/edit modal — centered card.
     itemModalBackdrop: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.55)',
