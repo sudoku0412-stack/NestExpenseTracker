@@ -113,7 +113,7 @@ module.exports = ({ config }) => {
       // Kept in sync BY HAND before each release build — see the
       // buildNumber comment above (autoIncrement is off; this literal
       // is the one actually used).
-      versionCode: 29,
+      versionCode: 30,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
       // Phase 3 magic-link invites: paired with the iOS associated
       // domain above. autoVerify=true makes Android verify the
