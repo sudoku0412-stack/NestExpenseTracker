@@ -109,6 +109,15 @@ describe('hrefForAuthGuard — sign-out from Settings', () => {
     expect(
       hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'edit' }),
     ).toBe('/auth');
+    expect(
+      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'review' }),
+    ).toBe('/auth');
+    expect(
+      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'investments' }),
+    ).toBe('/auth');
+    expect(
+      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'investment' }),
+    ).toBe('/auth');
   });
 
   it('leaves a signed-in user alone when useSegments() reports an empty current', () => {

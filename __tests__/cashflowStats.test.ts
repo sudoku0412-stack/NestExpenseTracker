@@ -100,4 +100,43 @@ describe('computeCashflow', () => {
     );
     expect(s.net).toBe(-200);
   });
+
+  it('counts Investments via categoryTags even when the primary category is custom', () => {
+    const s = computeCashflow(
+      [baseIncome({ amountUsd: 200 })],
+      [
+        baseReceipt({
+          id: 'r-tag',
+          totalAmount: 80,
+          category: 'Brokerage',
+          categoryTags: ['Brokerage', 'Investments'],
+        }),
+      ],
+    );
+    expect(s.investedUsd).toBe(80);
+    expect(s.consumedUsd).toBe(0);
+    expect(s.savingsRate).toBeCloseTo(80 / 200);
+  });
+
+  it('does not treat a custom tag that is not Investments as invested spend', () => {
+    const s = computeCashflow(
+      [baseIncome({ amountUsd: 200 })],
+      [baseReceipt({ totalAmount: 80, category: 'Brokerage', categoryTags: ['Brokerage'] })],
+    );
+    expect(s.investedUsd).toBe(0);
+    expect(s.consumedUsd).toBe(80);
+  });
+
+  it('uses unknown / Other buckets and a null savings rate when earned is 0', () => {
+    const s = computeCashflow(
+      [baseIncome({ amountUsd: 50, earnedBy: '', category: '' as Income['category'] })],
+      [baseReceipt({ totalAmount: 10, category: 'Investments' })],
+    );
+    expect(s.byMember).toEqual([{ earnedBy: 'unknown', total: 50, count: 1 }]);
+    expect(s.byCategory).toEqual([{ category: 'Other', total: 50, count: 1 }]);
+
+    const noEarn = computeCashflow([], [baseReceipt({ totalAmount: 10, category: 'Investments' })]);
+    expect(noEarn.savingsRate).toBeNull();
+    expect(noEarn.investedUsd).toBe(10);
+  });
 });
