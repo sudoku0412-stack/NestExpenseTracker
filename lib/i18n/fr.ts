@@ -44,7 +44,6 @@ export const fr: Record<keyof typeof en, string> = {
   leftAcrossBudgets: 'Reste sur l\'ensemble des budgets',
   leftAmountShort: '{amount} restant',
   overByAmount: 'Dépassé de {amount}',
-  recurringNotInTotals: 'Les totaux excluent le budget Récurrent, car ces dépenses sont déjà dans leurs catégories.',
   editAllBudgets: 'Modifier tous les budgets',
   wnHeading: 'Nouveautés de la version {version}',
   wnGotIt: 'Compris',

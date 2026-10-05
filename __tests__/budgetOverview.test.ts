@@ -39,17 +39,15 @@ describe('computeBudgetOverview', () => {
     });
   });
 
-  it('leaves the Recurring overlay out of the totals but still lists its row', () => {
+  it('counts every budget in the totals, Recurring included', () => {
     const o = computeBudgetOverview(
       { Groceries: 600, Subscriptions: 200, Recurring: 5000 },
       { Groceries: 150, Subscriptions: 140, Recurring: 246.5 },
-      'Recurring',
     );
     expect(o.lines.map((l) => l.category)).toEqual(['Recurring', 'Groceries', 'Subscriptions']);
-    expect(o.totalBudget).toBe(800); // not 5800
-    expect(o.totalSpent).toBe(290); // not 536.5 (recurring spend is already in its categories)
-    expect(o.leftOfTotal).toBe(510);
-    expect(o.leftAcrossBudgets).toBe(510); // Recurring's 4753.50 not added
-    expect(o.hasRecurringLine).toBe(true);
+    expect(o.totalBudget).toBe(5800);
+    expect(o.totalSpent).toBe(536.5);
+    expect(o.leftOfTotal).toBe(5263.5);
+    expect(o.leftAcrossBudgets).toBe(5263.5);
   });
 });

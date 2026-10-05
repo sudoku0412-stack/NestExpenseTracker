@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { render, fireEvent, waitFor, screen } from '@testing-library/react-native';
 
 const mockPush = jest.fn();
@@ -90,15 +91,29 @@ describe('BudgetsScreen', () => {
     expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/settings', params: { section: 'budgets' } });
   });
 
-  it('excludes Recurring from the summary totals and says so', async () => {
+  it('includes Recurring in the summary totals', async () => {
     mockGetBudgets.mockResolvedValue({ Groceries: 600, Recurring: 5000 });
     mockGetReceiptsByMonth.mockResolvedValue([receipt('a', 'Groceries', 150)]);
     render(<BudgetsScreen />);
     await waitFor(() => expect(screen.getByTestId('budget-row-Recurring')).toBeTruthy());
-    expect(screen.getByTestId('budgets-left-total')).toHaveTextContent('$450.00'); // 600 - 150
-    expect(screen.getByTestId('budgets-left-across')).toHaveTextContent('$450.00');
-    expect(screen.getAllByText('$150.00 of $600.00')).toHaveLength(2); // summary + Groceries row
-    expect(screen.queryByText('$150.00 of $5600.00')).toBeNull();
-    expect(screen.getByTestId('budgets-recurring-note')).toBeTruthy();
+    expect(screen.getByTestId('budgets-left-total')).toHaveTextContent('$5450.00'); // 5600 - 150
+    expect(screen.getByText('$150.00 of $5600.00')).toBeTruthy();
+  });
+
+  it('colors each row\'s left amount by status: green on track, accent watch, red over', async () => {
+    mockGetBudgets.mockResolvedValue({ Groceries: 1000, Dining: 100, Gas: 100, Travel: 100 });
+    mockGetReceiptsByMonth.mockResolvedValue([
+      receipt('a', 'Groceries', 100), // 10% -> on track
+      receipt('b', 'Dining', 80), // 80% -> watch
+      receipt('c', 'Gas', 120), // 120% -> over
+    ]);
+    render(<BudgetsScreen />);
+    await waitFor(() => screen.getByTestId('budget-left-Groceries'));
+    const colorOf = (id: string) => StyleSheet.flatten(screen.getByTestId(id).props.style).color;
+    const onTrack = colorOf('budget-left-Groceries');
+    const watch = colorOf('budget-left-Dining');
+    const over = colorOf('budget-left-Gas');
+    expect(new Set([onTrack, watch, over]).size).toBe(3);
+    expect(colorOf('budget-left-Travel')).toBe(onTrack); // untouched budget is on track
   });
 });

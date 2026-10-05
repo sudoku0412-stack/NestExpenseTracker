@@ -23,7 +23,6 @@ const EMPTY: BudgetOverview = {
   totalSpent: 0,
   leftOfTotal: 0,
   leftAcrossBudgets: 0,
-  hasRecurringLine: false,
 };
 
 /** Budget overview: every category with a budget, how much of it is spent
@@ -54,7 +53,7 @@ export default function BudgetsScreen() {
       getCurrency(),
       hid ? getCustomCategories(hid).catch(() => [] as CustomCategory[]) : Promise.resolve([] as CustomCategory[]),
     ]);
-    setOverview(computeBudgetOverview(budgets ?? {}, computeBudgetSpend(receipts), RECURRING_BUDGET_KEY));
+    setOverview(computeBudgetOverview(budgets ?? {}, computeBudgetSpend(receipts)));
     if (code) setCurrency(code as CurrencyCode);
     setCustoms(customList);
     setLoading(false);
@@ -121,11 +120,6 @@ export default function BudgetsScreen() {
                 b: formatCurrency(overview.totalBudget, currency),
               })}
             </Text>
-            {overview.hasRecurringLine ? (
-              <Text style={styles.summaryNote} testID="budgets-recurring-note">
-                {t('recurringNotInTotals')}
-              </Text>
-            ) : null}
             <View style={styles.track}>
               <View
                 style={[
@@ -173,7 +167,7 @@ export default function BudgetsScreen() {
                       })}
                     </Text>
                     <Text
-                      style={[styles.left, b.left < 0 ? { color: theme.colors.error } : null]}
+                      style={[styles.left, { color: meta.color }]}
                       testID={`budget-left-${b.category}`}
                     >
                       {b.left < 0

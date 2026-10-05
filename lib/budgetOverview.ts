@@ -22,7 +22,7 @@ export interface BudgetLine {
 
 export interface BudgetOverview {
   lines: BudgetLine[];
-  /** Sum of the category budgets set in Settings (Recurring excluded). */
+  /** Sum of every budget set in Settings, Recurring included. */
   totalBudget: number;
   /** Spent within the budgeted categories. */
   totalSpent: number;
@@ -31,8 +31,6 @@ export interface BudgetOverview {
   /** Sum of what's still unspent in each category (overspent ones count 0),
    *  i.e. how much room remains across all budgets. */
   leftAcrossBudgets: number;
-  /** True when a Recurring budget exists but is left out of the totals. */
-  hasRecurringLine: boolean;
 }
 
 /** Builds the Budgets page model from budgets (USD) and month spend per
@@ -41,9 +39,6 @@ export interface BudgetOverview {
 export function computeBudgetOverview(
   budgets: Record<string, number>,
   spendByKey: Record<string, number>,
-  /** Budget key that overlays the categories (Recurring) and must not be
-   *  added to the totals. */
-  overlayKey?: string,
 ): BudgetOverview {
   const lines: BudgetLine[] = Object.entries(budgets)
     .filter(([, limit]) => limit > 0)
@@ -60,18 +55,13 @@ export function computeBudgetOverview(
     })
     .sort((a, b) => b.limit - a.limit || a.category.localeCompare(b.category));
 
-  // "Recurring" is an overlay axis, not a category: every recurring expense is
-  // already counted in its own category, so adding its budget or spend to the
-  // totals would count that money twice. Its row still shows; the totals don't.
-  const counted = lines.filter((l) => l.category !== overlayKey);
-  const totalBudget = counted.reduce((s, l) => s + l.limit, 0);
-  const totalSpent = counted.reduce((s, l) => s + l.spent, 0);
+  const totalBudget = lines.reduce((s, l) => s + l.limit, 0);
+  const totalSpent = lines.reduce((s, l) => s + l.spent, 0);
   return {
     lines,
     totalBudget,
     totalSpent,
     leftOfTotal: totalBudget - totalSpent,
-    leftAcrossBudgets: counted.reduce((s, l) => s + Math.max(0, l.left), 0),
-    hasRecurringLine: counted.length !== lines.length,
+    leftAcrossBudgets: lines.reduce((s, l) => s + Math.max(0, l.left), 0),
   };
 }
