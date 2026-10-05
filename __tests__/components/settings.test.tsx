@@ -17,13 +17,14 @@ const mockSetActiveHousehold = jest.fn(async () => {});
 const mockToastShow = jest.fn();
 
 const mockSettingsPush = jest.fn();
+let mockSearchParams: Record<string, string> = {};
 let mockIsPremium = false;
 let mockLanguagePreference = 'system';
 const mockSetLanguage = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), push: mockSettingsPush, replace: jest.fn() }),
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockSearchParams,
   useFocusEffect: (cb: () => void) => {
     require('react').useEffect(cb, []);
   },
@@ -381,6 +382,34 @@ describe('SettingsScreen', () => {
       expect(mockLeaveHousehold).toHaveBeenCalledWith(
         expect.objectContaining({ uid: 'u1', householdId: 'hh1' }),
       );
+    });
+  });
+
+  describe('deep link to one budget row (?section=budgets&category=…)', () => {
+    afterEach(() => {
+      mockSearchParams = {};
+      jest.useRealTimers();
+    });
+
+    it('scrolls to that category row and focuses its amount box once the row is laid out', async () => {
+      mockSearchParams = { section: 'budgets', category: 'Pets' };
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { ScrollView, TextInput } = require('react-native');
+      const scrollSpy = jest.spyOn(ScrollView.prototype, 'scrollTo').mockImplementation(() => {});
+      const focusSpy = jest.spyOn(TextInput.prototype, 'focus').mockImplementation(() => {});
+
+      render(<SettingsScreen />);
+      const row = await waitFor(() => screen.getByTestId('custom-budget-row-Pets'));
+      // Row measured 300px down inside the card.
+      fireEvent(row, 'layout', { nativeEvent: { layout: { x: 0, y: 300, width: 300, height: 50 } } });
+
+      await waitFor(() => expect(scrollSpy).toHaveBeenCalled(), { timeout: 2000 });
+      const last = scrollSpy.mock.calls[scrollSpy.mock.calls.length - 1][0] as { y: number };
+      expect(last.y).toBeGreaterThanOrEqual(180); // 300 (row) - 120 (headroom)
+      await waitFor(() => expect(focusSpy).toHaveBeenCalled(), { timeout: 2000 });
+
+      scrollSpy.mockRestore();
+      focusSpy.mockRestore();
     });
   });
 });

@@ -693,14 +693,18 @@ export default function DashboardScreen() {
   // line items (see lib/budgetSpend.ts) so item-level categories — built-in
   // or custom — count toward their own budgets.
   const categorySpendForBudgets = computeBudgetSpend(receipts);
-  const budgetRows = Object.entries(categorySpendForBudgets)
-    .filter(([category]) => (budgets[category] ?? 0) > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([category, spent]) => ({
+  // Every category with a budget gets a chip (spent 0 when nothing is spent
+  // yet), so the section — and its link to the Budgets page — is present from
+  // the first day of a month, not only once something has been spent.
+  const budgetRows = Object.entries(budgets)
+    .filter(([, limit]) => limit > 0)
+    .map(([category, limit]) => ({ category, spent: categorySpendForBudgets[category] ?? 0, limit }))
+    .sort((a, b) => b.spent - a.spent)
+    .map(({ category, spent, limit }) => ({
       category,
       spent,
-      limit: budgets[category],
-      status: budgetStatus(spent, budgets[category]),
+      limit,
+      status: budgetStatus(spent, limit),
     }));
 
   const statusMeta: Record<BudgetStatus, { label: string; color: string; bg: string }> = {

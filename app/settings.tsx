@@ -509,13 +509,18 @@ export default function SettingsScreen() {
           ? Math.max(0, budgetsSectionY.current + budgetsCardY.current + rowY - 120)
           : budgetsSectionY.current;
       scrollRef.current?.scrollTo({ y, animated: true });
-      if (members !== null) {
+      // Latch only once the members have resolved AND (when a row was asked
+      // for) that row has been laid out — custom-category rows appear after
+      // an async load, and latching on the section-top fallback would leave
+      // the effect unable to retry when the row finally renders.
+      const rowReady = !focusCategory || rowY !== undefined;
+      if (members !== null && rowReady) {
         didAutoScrollRef.current = true;
         if (focusCategory) setTimeout(() => budgetInputRefs.current[focusCategory]?.focus(), 400);
       }
     }, 150);
     return () => clearTimeout(timer);
-  }, [section, focusCategory, members]);
+  }, [section, focusCategory, members, customCategories]);
 
   const sendInvite = async () => {
     const householdId = getCurrentHouseholdId();

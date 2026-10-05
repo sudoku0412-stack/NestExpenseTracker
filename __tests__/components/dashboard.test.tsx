@@ -272,6 +272,17 @@ describe('DashboardScreen', () => {
     expect(screen.getByText('On track')).toBeTruthy();
   });
 
+  it('shows a budget chip (0 spent) even before anything is spent, so the Budgets page is reachable', async () => {
+    mockGetCategoryBudgets.mockResolvedValue({ Groceries: 100 });
+    mockGetReceiptsByMonth
+      .mockResolvedValueOnce([makeReceipt({ id: 'r1', totalAmount: 20, category: 'Dining' })])
+      .mockResolvedValueOnce([]);
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByTestId('budget-chip-Groceries')).toBeTruthy());
+    expect(screen.getByText('$0.00 of $100.00')).toBeTruthy();
+    expect(screen.getByText('On track')).toBeTruthy();
+  });
+
   it('tapping a budget chip or See all opens the Budgets page for the viewed month', async () => {
     mockGetCategoryBudgets.mockResolvedValue({ Groceries: 100 });
     mockGetReceiptsByMonth
