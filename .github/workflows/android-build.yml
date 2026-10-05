@@ -37,6 +37,7 @@ on:
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
+      - 'landing/**'
 
 jobs:
   test:
