@@ -11,7 +11,7 @@ Repo renamed from `BalanceSheet` to `NestExpenseTracker` (2026-10-01); the local
 
 ## State as of 2026-10-01 (HEAD `ab1d207`, main)
 
-**Versions**: `app.config.js` / pbxproj = marketing version **2.0.0**, iOS build **54**, Android `versionCode` **30**. `app.json` mirrors `app.config.js` (kept in sync) but `app.config.js` is what EAS/CI reads. Bump `app.config.js`, `app.json`, and `ios/*/project.pbxproj` together.
+**Versions**: `app.config.js` / pbxproj = marketing version **2.0.0**, iOS build **54**, Android `versionCode` **31**. `app.json` mirrors `app.config.js` (kept in sync) but `app.config.js` is what EAS/CI reads. Bump `app.config.js`, `app.json`, and `ios/*/project.pbxproj` together.
 
 **CI (latest main push `ab1d207`)**: `Release build + submit` and `Android build` both succeeded. `release-build.yml` now builds a local production Android `.aab` on the GitHub runner on every non-docs push to main (no EAS cloud credits, no auto-submit). Download the artifact from the run and upload to Play Console by hand. iOS stays local Xcode archive → TestFlight.
 
