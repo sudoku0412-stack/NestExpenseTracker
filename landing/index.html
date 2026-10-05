@@ -80,7 +80,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scroll-padding-top: 120px; }
 body {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg);
@@ -193,7 +193,8 @@ footer { border-top: 1px solid var(--line); padding: 30px 0 44px; color: var(--i
 @media (max-width: 960px) {
   .f1, .f2 { display: none; }
   .grid, .steps { grid-template-columns: 1fr; }
-  .links { display: none; }
+  .nav-in { flex-wrap: wrap; height: auto; padding: 10px 0 6px; row-gap: 6px; }
+  .links { order: 3; width: 100%; justify-content: center; gap: 22px; padding-bottom: 6px; }
 }
 @media (max-width: 520px) {
   .hero { padding-top: 48px; }
