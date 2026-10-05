@@ -1095,7 +1095,7 @@ export default function SettingsScreen() {
           }}
         >
           {ALL_CATEGORIES.filter((cat) => cat !== RECURRING_BUDGET_KEY).map((cat: Category) => (
-            <View key={cat} style={styles.budgetRow} {...budgetRowProps(cat)}>
+            <View key={cat} style={styles.budgetRow} testID={`budget-row-${cat}`} {...budgetRowProps(cat)}>
               <View
                 style={[styles.categoryDot, { backgroundColor: theme.colors.category[cat] }]}
               />
@@ -1106,6 +1106,7 @@ export default function SettingsScreen() {
                 <Text style={styles.budgetCurrencyPrefix}>{CURRENCY_SYMBOLS[currency]}</Text>
                 <TextInput
                   ref={budgetInputRef(cat)}
+                  testID={`budget-input-${cat}`}
                   value={budgetInputs[cat] ?? ''}
                   onChangeText={(v) => updateCategoryBudget(cat, v)}
                   placeholder="0"
@@ -1134,6 +1135,7 @@ export default function SettingsScreen() {
                 <Text style={styles.budgetCurrencyPrefix}>{CURRENCY_SYMBOLS[currency]}</Text>
                 <TextInput
                   ref={budgetInputRef(c.name)}
+                  testID={`budget-input-${c.name}`}
                   value={budgetInputs[c.name] ?? ''}
                   onChangeText={(v) => updateCategoryBudget(c.name, v)}
                   placeholder="0"
@@ -1192,7 +1194,7 @@ export default function SettingsScreen() {
               recurring expenses regardless of their own category, so a
               "how much am I auto-committed to every month" limit can be
               tracked apart from any one category's limit. */}
-          <View style={styles.budgetRow} {...budgetRowProps(RECURRING_BUDGET_KEY)}>
+          <View style={styles.budgetRow} testID={`budget-row-${RECURRING_BUDGET_KEY}`} {...budgetRowProps(RECURRING_BUDGET_KEY)}>
             <View style={[styles.categoryDot, { backgroundColor: theme.colors.accent }]} />
             <Text style={styles.categoryName} numberOfLines={1}>
               {RECURRING_BUDGET_KEY}
@@ -1201,6 +1203,7 @@ export default function SettingsScreen() {
               <Text style={styles.budgetCurrencyPrefix}>{CURRENCY_SYMBOLS[currency]}</Text>
               <TextInput
                 ref={budgetInputRef(RECURRING_BUDGET_KEY)}
+                testID={`budget-input-${RECURRING_BUDGET_KEY}`}
                 value={budgetInputs[RECURRING_BUDGET_KEY] ?? ''}
                 onChangeText={(v) => updateCategoryBudget(RECURRING_BUDGET_KEY, v)}
                 placeholder="0"
@@ -1313,7 +1316,7 @@ function Section({
   return (
     <View style={styles.section} onLayout={onLayout}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.card} onLayout={onCardLayout}>
+      <View style={styles.card} onLayout={onCardLayout} testID={onCardLayout ? 'settings-section-card' : undefined}>
         {children}
       </View>
     </View>

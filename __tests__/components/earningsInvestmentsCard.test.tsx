@@ -117,4 +117,24 @@ describe('EarningsInvestmentsCard', () => {
     wrap(<EarningsInvestmentsCard cashflow={cash} accounts={[]} currency="USD" members={[] as never} />);
     expect(screen.queryByTestId('earnings-members')).toBeNull();
   });
+
+  it('labels an unknown long uid with a truncated fallback, not a blank slice', () => {
+    const two = computeCashflow(
+      [
+        { ...income('a', 'Salary', 1000), earnedBy: 'uid-me' },
+        { ...income('b', 'Salary', 1000), earnedBy: 'abcdefghijk' },
+      ],
+      [],
+    );
+    wrap(
+      <EarningsInvestmentsCard
+        cashflow={two}
+        accounts={[]}
+        currency="USD"
+        members={[{ uid: 'uid-me', displayName: 'Alex', isYou: true }] as never}
+      />,
+    );
+    expect(screen.getByText('You 50%')).toBeTruthy();
+    expect(screen.getByText('abcdef… 50%')).toBeTruthy();
+  });
 });
