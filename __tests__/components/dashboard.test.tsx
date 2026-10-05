@@ -272,6 +272,25 @@ describe('DashboardScreen', () => {
     expect(screen.getByText('On track')).toBeTruthy();
   });
 
+  it('tapping a budget chip or See all opens the Budgets page for the viewed month', async () => {
+    mockGetCategoryBudgets.mockResolvedValue({ Groceries: 100 });
+    mockGetReceiptsByMonth
+      .mockResolvedValueOnce([makeReceipt({ id: 'r1', totalAmount: 40, category: 'Groceries' })])
+      .mockResolvedValueOnce([]);
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByTestId('budget-chip-Groceries')).toBeTruthy());
+
+    const now = new Date();
+    const expected = {
+      pathname: '/budgets',
+      params: { year: String(now.getFullYear()), month: String(now.getMonth() + 1) },
+    };
+    fireEvent.press(screen.getByTestId('budget-chip-Groceries'));
+    expect(router.push).toHaveBeenLastCalledWith(expected);
+    fireEvent.press(screen.getByTestId('budgets-see-all'));
+    expect(router.push).toHaveBeenLastCalledWith(expected);
+  });
+
   it('shows the empty state when there are no receipts', async () => {
     mockGetReceiptsByMonth.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     render(<DashboardScreen />);

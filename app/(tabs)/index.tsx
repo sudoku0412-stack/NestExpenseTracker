@@ -721,6 +721,12 @@ export default function DashboardScreen() {
   const paceStatus = showPaceRing ? budgetStatus(stats.totalSpent, totalBudget) : 'onTrack';
   const paceColor = statusMeta[paceStatus].color;
 
+  const openBudgets = () =>
+    router.push({
+      pathname: '/budgets',
+      params: { year: String(viewedMonth.getFullYear()), month: String(viewedMonth.getMonth() + 1) },
+    } as never);
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <WhatsNewModal />
@@ -1096,8 +1102,8 @@ export default function DashboardScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{t('budgets')}</Text>
-              <TouchableOpacity onPress={() => router.push('/settings?section=budgets' as never)} hitSlop={8}>
-                <Text style={styles.sectionLink}>{t('manage')}</Text>
+              <TouchableOpacity onPress={openBudgets} hitSlop={8} testID="budgets-see-all">
+                <Text style={styles.sectionLink}>{t('seeAll')}</Text>
               </TouchableOpacity>
             </View>
             <ScrollView
@@ -1118,7 +1124,14 @@ export default function DashboardScreen() {
                       );
                 const ratio = b.limit > 0 ? Math.min(b.spent / b.limit, 1) : 0;
                 return (
-                  <View key={b.category} style={styles.budgetChip}>
+                  <TouchableOpacity
+                    key={b.category}
+                    style={styles.budgetChip}
+                    activeOpacity={0.8}
+                    onPress={openBudgets}
+                    accessibilityRole="button"
+                    testID={`budget-chip-${b.category}`}
+                  >
                     <View style={styles.budgetChipTopRow}>
                       <RingProgress
                         size={30}
@@ -1147,7 +1160,7 @@ export default function DashboardScreen() {
                         b: formatCurrency(b.limit, currency),
                       })}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </ScrollView>
