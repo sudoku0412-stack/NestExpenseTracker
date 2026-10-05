@@ -202,9 +202,12 @@ details[open] summary::after { content: '–'; }
 details p { padding: 0 0 18px; color: var(--ink-2); }
 .cta { text-align: center; }
 .cta h2 { max-width: 18ch; }
-footer { border-top: 1px solid var(--line); padding: 30px 0 44px; color: var(--ink-3); font-size: 14px; }
+footer { border-top: 1px solid var(--line); padding: 44px 0 52px; color: var(--ink-3); font-size: 14px; }
 .foot { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: space-between; align-items: center; }
-.foot nav-links, .flinks { display: flex; gap: 22px; }
+.fbrand p { margin-top: 8px; font-size: 14px; color: var(--ink-3); }
+.fbrand p b { color: var(--ink); font-weight: 700; }
+.dot { color: var(--brand); }
+.flinks { display: flex; gap: 28px; font-weight: 500; }
 .flinks a:hover { color: var(--ink); }
 
 @media (max-width: 960px) {
@@ -350,12 +353,15 @@ footer { border-top: 1px solid var(--line); padding: 30px 0 44px; color: var(--i
 
 <footer>
   <div class="wrap foot">
-    <span>© <span id="yr">2026</span> NestExpenseTracker. Made by Kaushik Majumder.</span>
-    <div class="flinks">
-      <a href="https://nestexpensetracker.legal.craftloop.ca/privacy">Privacy</a>
-      <a href="https://nestexpensetracker.legal.craftloop.ca/terms">Terms</a>
-      <a href="https://nestexpensetracker.legal.craftloop.ca/support">Support</a>
+    <div class="fbrand">
+      <a class="brand" href="#top"><img src="icon.png" alt="" />NestExpenseTracker<span class="dot">.</span></a>
+      <p>A <b>Craftloop</b> product</p>
     </div>
+    <div class="flinks">
+      <a href="https://nestexpensetracker.legal.craftloop.ca/privacy">Privacy Policy</a>
+      <a href="https://nestexpensetracker.legal.craftloop.ca/terms">Terms of Service</a>
+    </div>
+    <span class="copy">© <span id="yr">2026</span> Craftloop. All rights reserved.</span>
   </div>
 </footer>
 
