@@ -49,6 +49,8 @@ export const en = {
   wnCategoriesBody: 'Create custom categories with their own budgets. They show up in Add expense, budgets, alerts and the dashboard, and are shared with your household.',
   wnBudgetsTitle: 'Smarter budgets',
   wnBudgetsBody: 'Line items on a receipt now count toward their own category budget, so one grocery-and-pharmacy receipt updates both.',
+  wnBudgetsPageTitle: 'A page for your budgets',
+  wnBudgetsPageBody: 'Tap Budgets on Home to see every category with how much is spent and left, plus what remains of your total budget.',
   wnInvestmentsTitle: 'Track your investments',
   wnInvestmentsBody: 'Add accounts like a TFSA or crypto, record deposits and values, and see your gain over time.',
   wnEarningsTitle: 'Earnings at a glance',
