@@ -19,7 +19,7 @@
         "NSPhotoLibraryUsageDescription": "NestExpenseTracker needs photo library access to import receipts.",
         "NSContactsUsageDescription": "NestExpenseTracker needs contacts access so you can pick who to add to your household."
       },
-      "buildNumber": "51"
+      "buildNumber": "52"
     },
     "android": {
       "adaptiveIcon": {
