@@ -28,9 +28,6 @@ export interface BudgetOverview {
   totalSpent: number;
   /** totalBudget − totalSpent; negative when over the whole budget. */
   leftOfTotal: number;
-  /** Sum of what's still unspent in each category (overspent ones count 0),
-   *  i.e. how much room remains across all budgets. */
-  leftAcrossBudgets: number;
 }
 
 /** Builds the Budgets page model from budgets (USD) and month spend per
@@ -62,6 +59,5 @@ export function computeBudgetOverview(
     totalBudget,
     totalSpent,
     leftOfTotal: totalBudget - totalSpent,
-    leftAcrossBudgets: lines.reduce((s, l) => s + Math.max(0, l.left), 0),
   };
 }

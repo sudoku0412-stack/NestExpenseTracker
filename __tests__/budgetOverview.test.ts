@@ -27,7 +27,6 @@ describe('computeBudgetOverview', () => {
     expect(o.totalBudget).toBe(850);
     expect(o.totalSpent).toBe(450);
     expect(o.leftOfTotal).toBe(400); // 850 - 450
-    expect(o.leftAcrossBudgets).toBe(450); // 450 left in Groceries, 0 in Dining
   });
 
   it('is empty without budgets', () => {
@@ -35,7 +34,6 @@ describe('computeBudgetOverview', () => {
       lines: [],
       totalBudget: 0,
       leftOfTotal: 0,
-      leftAcrossBudgets: 0,
     });
   });
 
@@ -48,6 +46,5 @@ describe('computeBudgetOverview', () => {
     expect(o.totalBudget).toBe(5800);
     expect(o.totalSpent).toBe(536.5);
     expect(o.leftOfTotal).toBe(5263.5);
-    expect(o.leftAcrossBudgets).toBe(5263.5);
   });
 });

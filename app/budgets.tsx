@@ -22,7 +22,6 @@ const EMPTY: BudgetOverview = {
   totalBudget: 0,
   totalSpent: 0,
   leftOfTotal: 0,
-  leftAcrossBudgets: 0,
 };
 
 /** Budget overview: every category with a budget, how much of it is spent
@@ -108,10 +107,10 @@ export default function BudgetsScreen() {
                 <Text style={styles.summaryLabel}>{overTotal ? t('overTotalBudget') : t('leftOfTotalBudget')}</Text>
               </View>
               <View style={styles.summaryBlock}>
-                <Text style={styles.summaryValue} testID="budgets-left-across">
-                  {formatCurrency(overview.leftAcrossBudgets, currency)}
+                <Text style={styles.summaryValue} testID="budgets-total">
+                  {formatCurrency(overview.totalBudget, currency)}
                 </Text>
-                <Text style={styles.summaryLabel}>{t('leftAcrossBudgets')}</Text>
+                <Text style={styles.summaryLabel}>{t('totalBudget')}</Text>
               </View>
             </View>
             <Text style={styles.summaryNote}>

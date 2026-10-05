@@ -57,7 +57,7 @@ describe('BudgetsScreen', () => {
     expect(screen.getByTestId('budget-left-Groceries')).toHaveTextContent('$450.00 left');
     expect(screen.getByTestId('budget-left-Dining')).toHaveTextContent('Over by $50.00');
     expect(screen.getByTestId('budgets-left-total')).toHaveTextContent('$400.00'); // 850 - 450
-    expect(screen.getByTestId('budgets-left-across')).toHaveTextContent('$450.00');
+    expect(screen.getByTestId('budgets-total')).toHaveTextContent('$850.00');
     expect(screen.getByText('Left of total budget')).toBeTruthy();
   });
 
@@ -67,7 +67,7 @@ describe('BudgetsScreen', () => {
     render(<BudgetsScreen />);
     await waitFor(() => expect(screen.getByText('Over total budget')).toBeTruthy());
     expect(screen.getByTestId('budgets-left-total')).toHaveTextContent('$30.00');
-    expect(screen.getByTestId('budgets-left-across')).toHaveTextContent('$0.00');
+    expect(screen.getByTestId('budgets-total')).toHaveTextContent('$100.00');
   });
 
   it('Manage opens Settings on that category; Edit all opens the budgets section', async () => {
