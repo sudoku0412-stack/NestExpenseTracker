@@ -42,7 +42,6 @@ export const en = {
   leftAcrossBudgets: 'Left across budgets',
   leftAmountShort: '{amount} left',
   overByAmount: 'Over by {amount}',
-  recurringNotInTotals: 'Totals leave out the Recurring budget, since those expenses are already in their categories.',
   editAllBudgets: 'Edit all budgets',
   wnHeading: "What's new in {version}",
   wnGotIt: 'Got it',
