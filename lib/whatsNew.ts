@@ -13,10 +13,11 @@ export interface WhatsNewSlide {
 /** Release notes shown once, the first time a user opens that version.
  *  Add an entry per release; a version with no entry shows nothing. */
 export const WHATS_NEW: Record<string, WhatsNewSlide[]> = {
-  '1.0.9': [
+  '2.0.0': [
     { key: 'categories', icon: 'pricetags-outline', title: 'wnCategoriesTitle', body: 'wnCategoriesBody', premium: true },
     { key: 'budgets', icon: 'speedometer-outline', title: 'wnBudgetsTitle', body: 'wnBudgetsBody' },
     { key: 'investments', icon: 'trending-up-outline', title: 'wnInvestmentsTitle', body: 'wnInvestmentsBody', premium: true },
+    { key: 'budgetsPage', icon: 'speedometer-outline', title: 'wnBudgetsPageTitle', body: 'wnBudgetsPageBody' },
     { key: 'earnings', icon: 'pie-chart-outline', title: 'wnEarningsTitle', body: 'wnEarningsBody' },
     { key: 'currencies', icon: 'cash-outline', title: 'wnCurrenciesTitle', body: 'wnCurrenciesBody', premium: true },
     { key: 'french', icon: 'language-outline', title: 'wnFrenchTitle', body: 'wnFrenchBody' },

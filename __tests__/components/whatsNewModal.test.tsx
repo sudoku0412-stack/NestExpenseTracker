@@ -5,7 +5,7 @@ import { I18nProvider } from '../../lib/I18nContext';
 import { WhatsNewModal } from '../../components/WhatsNewModal';
 import { WHATS_NEW } from '../../lib/whatsNew';
 
-jest.mock('expo-constants', () => ({ expoConfig: { version: '1.0.9' } }));
+jest.mock('expo-constants', () => ({ expoConfig: { version: '2.0.0' } }));
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
   setItemAsync: jest.fn(async () => undefined),
@@ -34,15 +34,15 @@ describe('WhatsNewModal', () => {
   it('shows once for an unseen version, steps through, and records on finish', async () => {
     mount();
     await waitFor(() => expect(screen.getByTestId('whats-new-title')).toBeTruthy());
-    expect(screen.getByText("What's new in 1.0.9")).toBeTruthy();
+    expect(screen.getByText("What's new in 2.0.0")).toBeTruthy();
     expect(store.setItemAsync).not.toHaveBeenCalled();
 
-    const n = WHATS_NEW['1.0.9'].length;
+    const n = WHATS_NEW['2.0.0'].length;
     for (let i = 0; i < n - 1; i++) fireEvent.press(screen.getByText('Next'));
     fireEvent.press(screen.getByText('Got it'));
 
     await waitFor(() => expect(screen.queryByTestId('whats-new-title')).toBeNull());
-    expect(store.setItemAsync).toHaveBeenCalledWith('bs.whatsNew.seenVersion', '1.0.9');
+    expect(store.setItemAsync).toHaveBeenCalledWith('bs.whatsNew.seenVersion', '2.0.0');
   });
 
   it('Skip dismisses and records the version', async () => {
@@ -50,11 +50,11 @@ describe('WhatsNewModal', () => {
     await waitFor(() => screen.getByText('Skip'));
     fireEvent.press(screen.getByText('Skip'));
     await waitFor(() => expect(screen.queryByTestId('whats-new-title')).toBeNull());
-    expect(store.setItemAsync).toHaveBeenCalledWith('bs.whatsNew.seenVersion', '1.0.9');
+    expect(store.setItemAsync).toHaveBeenCalledWith('bs.whatsNew.seenVersion', '2.0.0');
   });
 
   it('does not show when this version was already seen', async () => {
-    store.getItemAsync.mockResolvedValue('1.0.9');
+    store.getItemAsync.mockResolvedValue('2.0.0');
     mount();
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByTestId('whats-new-title')).toBeNull();

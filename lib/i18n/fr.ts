@@ -51,6 +51,8 @@ export const fr: Record<keyof typeof en, string> = {
   wnCategoriesBody: 'Créez des catégories personnalisées avec leur propre budget. Elles apparaissent dans Ajouter une dépense, les budgets, les alertes et le tableau de bord, et sont partagées avec votre foyer.',
   wnBudgetsTitle: 'Budgets plus intelligents',
   wnBudgetsBody: 'Les articles d\'un reçu comptent maintenant dans le budget de leur catégorie : un reçu épicerie et pharmacie met à jour les deux.',
+  wnBudgetsPageTitle: 'Une page pour vos budgets',
+  wnBudgetsPageBody: 'Touchez Budgets sur l\'accueil pour voir chaque catégorie avec ce qui est dépensé et ce qui reste, ainsi que le reste de votre budget total.',
   wnInvestmentsTitle: 'Suivez vos placements',
   wnInvestmentsBody: 'Ajoutez des comptes comme un CELI ou des cryptos, notez dépôts et valeurs, et suivez votre gain.',
   wnEarningsTitle: 'Vos revenus en un coup d\'œil',
