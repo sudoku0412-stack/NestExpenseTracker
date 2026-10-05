@@ -47,4 +47,15 @@ describe('computeBudgetOverview', () => {
     expect(o.totalSpent).toBe(536.5);
     expect(o.leftOfTotal).toBe(5263.5);
   });
+
+  it('ties on limit sort alphabetically and ignores unbudgeted spend in totals', () => {
+    const o = computeBudgetOverview(
+      { Dining: 100, Groceries: 100, Travel: -5 },
+      { Dining: 10, Groceries: 10, Travel: 999, Other: 40 },
+    );
+    expect(o.lines.map((l) => l.category)).toEqual(['Dining', 'Groceries']);
+    expect(o.totalBudget).toBe(200);
+    expect(o.totalSpent).toBe(20);
+    expect(o.leftOfTotal).toBe(180);
+  });
 });

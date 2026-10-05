@@ -118,6 +118,9 @@ describe('hrefForAuthGuard — sign-out from Settings', () => {
     expect(
       hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'investment' }),
     ).toBe('/auth');
+    expect(
+      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'budgets' }),
+    ).toBe('/auth');
   });
 
   it('leaves a signed-in user alone when useSegments() reports an empty current', () => {
@@ -132,7 +135,7 @@ describe('hrefForAuthGuard — sign-out from Settings', () => {
 });
 
 describe('hrefForAuthGuard — pushed screens stay put for signed-in users', () => {
-  it.each(['review', 'investments', 'investment', 'savings-goals', 'recurring'])(
+  it.each(['review', 'investments', 'investment', 'savings-goals', 'recurring', 'budgets'])(
     'does not bounce %s back to Home',
     (current) => {
       expect(hrefForAuthGuard({ user: { uid: 'u' }, onboardingSeen: true, current })).toBeNull();

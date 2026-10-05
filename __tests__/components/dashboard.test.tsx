@@ -569,5 +569,21 @@ describe('DashboardScreen', () => {
     });
     expect(screen.getByText('Sudesna Karak 47%')).toBeTruthy();
     expect(screen.queryByText(/Tap earned for all incomes/)).toBeNull();
+
+    const now = new Date();
+    const monthParams = {
+      year: String(now.getFullYear()),
+      month: String(now.getMonth() + 1),
+    };
+    fireEvent.press(screen.getByTestId('earnings-member-uid-partner'));
+    expect(router.push).toHaveBeenLastCalledWith({
+      pathname: '/incomes',
+      params: { earnedBy: 'uid-partner', ...monthParams },
+    });
+    fireEvent.press(screen.getByTestId('earnings-income-head'));
+    expect(router.push).toHaveBeenLastCalledWith({
+      pathname: '/incomes',
+      params: monthParams,
+    });
   });
 });
