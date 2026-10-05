@@ -41,7 +41,7 @@ export const fr: Record<keyof typeof en, string> = {
   setBudgets: 'Définir des budgets',
   leftOfTotalBudget: 'Reste du budget total',
   overTotalBudget: 'Dépassement du budget total',
-  leftAcrossBudgets: 'Reste sur l\'ensemble des budgets',
+  totalBudget: 'Budget total',
   leftAmountShort: '{amount} restant',
   overByAmount: 'Dépassé de {amount}',
   editAllBudgets: 'Modifier tous les budgets',

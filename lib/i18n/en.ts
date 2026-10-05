@@ -39,7 +39,7 @@ export const en = {
   setBudgets: 'Set budgets',
   leftOfTotalBudget: 'Left of total budget',
   overTotalBudget: 'Over total budget',
-  leftAcrossBudgets: 'Left across budgets',
+  totalBudget: 'Total budget',
   leftAmountShort: '{amount} left',
   overByAmount: 'Over by {amount}',
   editAllBudgets: 'Edit all budgets',
