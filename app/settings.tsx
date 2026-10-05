@@ -400,9 +400,24 @@ export default function SettingsScreen() {
   const { language, preference: languagePreference, setPreference: setLanguagePreference } = useLanguage();
   const styles = useSettingsStyles();
   const router = useRouter();
-  const { section } = useLocalSearchParams<{ section?: string }>();
+  const { section, category: focusCategory } = useLocalSearchParams<{ section?: string; category?: string }>();
   const scrollRef = React.useRef<ScrollView>(null);
   const budgetsSectionY = React.useRef(0);
+  // Budget-row geometry for deep-linking to one category's row
+  // (/settings?section=budgets&category=Groceries): the card's offset inside
+  // the section plus each row's offset inside the card, and the inputs so the
+  // target row can be focused for editing.
+  const budgetsCardY = React.useRef(0);
+  const budgetRowY = React.useRef<Record<string, number>>({});
+  const budgetInputRefs = React.useRef<Record<string, TextInput | null>>({});
+  const budgetRowProps = (key: string) => ({
+    onLayout: (e: LayoutChangeEvent) => {
+      budgetRowY.current[key] = e.nativeEvent.layout.y;
+    },
+  });
+  const budgetInputRef = (key: string) => (el: TextInput | null) => {
+    budgetInputRefs.current[key] = el;
+  };
   const { user, profile, signOut, deleteAccount, refreshProfile, setActiveHousehold } = useAuth();
   const { isPremium, promoRedemption } = useEntitlements();
   const toast = useToast();
@@ -484,15 +499,23 @@ export default function SettingsScreen() {
   const didAutoScrollRef = React.useRef(false);
   useEffect(() => {
     didAutoScrollRef.current = false;
-  }, [section]);
+  }, [section, focusCategory]);
   useEffect(() => {
     if (section !== 'budgets' || didAutoScrollRef.current) return;
     const timer = setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: budgetsSectionY.current, animated: true });
-      if (members !== null) didAutoScrollRef.current = true;
+      const rowY = focusCategory ? budgetRowY.current[focusCategory] : undefined;
+      const y =
+        rowY !== undefined
+          ? Math.max(0, budgetsSectionY.current + budgetsCardY.current + rowY - 120)
+          : budgetsSectionY.current;
+      scrollRef.current?.scrollTo({ y, animated: true });
+      if (members !== null) {
+        didAutoScrollRef.current = true;
+        if (focusCategory) setTimeout(() => budgetInputRefs.current[focusCategory]?.focus(), 400);
+      }
     }, 150);
     return () => clearTimeout(timer);
-  }, [section, members]);
+  }, [section, focusCategory, members]);
 
   const sendInvite = async () => {
     const householdId = getCurrentHouseholdId();
@@ -1067,9 +1090,12 @@ export default function SettingsScreen() {
           onLayout={(e) => {
             budgetsSectionY.current = e.nativeEvent.layout.y;
           }}
+          onCardLayout={(e) => {
+            budgetsCardY.current = e.nativeEvent.layout.y;
+          }}
         >
           {ALL_CATEGORIES.filter((cat) => cat !== RECURRING_BUDGET_KEY).map((cat: Category) => (
-            <View key={cat} style={styles.budgetRow}>
+            <View key={cat} style={styles.budgetRow} {...budgetRowProps(cat)}>
               <View
                 style={[styles.categoryDot, { backgroundColor: theme.colors.category[cat] }]}
               />
@@ -1079,6 +1105,7 @@ export default function SettingsScreen() {
               <View style={styles.budgetInputBox}>
                 <Text style={styles.budgetCurrencyPrefix}>{CURRENCY_SYMBOLS[currency]}</Text>
                 <TextInput
+                  ref={budgetInputRef(cat)}
                   value={budgetInputs[cat] ?? ''}
                   onChangeText={(v) => updateCategoryBudget(cat, v)}
                   placeholder="0"
@@ -1093,7 +1120,12 @@ export default function SettingsScreen() {
               member can see them and set their budget; only Premium
               members can create or remove them. */}
           {customCategories.map((c) => (
-            <View key={c.name} style={styles.budgetRow} testID={`custom-budget-row-${c.name}`}>
+            <View
+              key={c.name}
+              style={styles.budgetRow}
+              testID={`custom-budget-row-${c.name}`}
+              {...budgetRowProps(c.name)}
+            >
               <View style={[styles.categoryDot, { backgroundColor: c.color }]} />
               <Text style={styles.categoryName} numberOfLines={1}>
                 {c.name}
@@ -1101,6 +1133,7 @@ export default function SettingsScreen() {
               <View style={styles.budgetInputBox}>
                 <Text style={styles.budgetCurrencyPrefix}>{CURRENCY_SYMBOLS[currency]}</Text>
                 <TextInput
+                  ref={budgetInputRef(c.name)}
                   value={budgetInputs[c.name] ?? ''}
                   onChangeText={(v) => updateCategoryBudget(c.name, v)}
                   placeholder="0"
@@ -1159,7 +1192,7 @@ export default function SettingsScreen() {
               recurring expenses regardless of their own category, so a
               "how much am I auto-committed to every month" limit can be
               tracked apart from any one category's limit. */}
-          <View style={styles.budgetRow}>
+          <View style={styles.budgetRow} {...budgetRowProps(RECURRING_BUDGET_KEY)}>
             <View style={[styles.categoryDot, { backgroundColor: theme.colors.accent }]} />
             <Text style={styles.categoryName} numberOfLines={1}>
               {RECURRING_BUDGET_KEY}
@@ -1167,6 +1200,7 @@ export default function SettingsScreen() {
             <View style={styles.budgetInputBox}>
               <Text style={styles.budgetCurrencyPrefix}>{CURRENCY_SYMBOLS[currency]}</Text>
               <TextInput
+                ref={budgetInputRef(RECURRING_BUDGET_KEY)}
                 value={budgetInputs[RECURRING_BUDGET_KEY] ?? ''}
                 onChangeText={(v) => updateCategoryBudget(RECURRING_BUDGET_KEY, v)}
                 placeholder="0"
@@ -1268,16 +1302,20 @@ function Section({
   title,
   children,
   onLayout,
+  onCardLayout,
 }: {
   title: string;
   children: React.ReactNode;
   onLayout?: (e: LayoutChangeEvent) => void;
+  onCardLayout?: (e: LayoutChangeEvent) => void;
 }) {
   const styles = useSettingsStyles();
   return (
     <View style={styles.section} onLayout={onLayout}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.card}>{children}</View>
+      <View style={styles.card} onLayout={onCardLayout}>
+        {children}
+      </View>
     </View>
   );
 }
