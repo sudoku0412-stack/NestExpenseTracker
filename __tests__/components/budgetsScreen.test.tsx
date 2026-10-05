@@ -89,4 +89,16 @@ describe('BudgetsScreen', () => {
     fireEvent.press(screen.getByText('Set budgets'));
     expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/settings', params: { section: 'budgets' } });
   });
+
+  it('excludes Recurring from the summary totals and says so', async () => {
+    mockGetBudgets.mockResolvedValue({ Groceries: 600, Recurring: 5000 });
+    mockGetReceiptsByMonth.mockResolvedValue([receipt('a', 'Groceries', 150)]);
+    render(<BudgetsScreen />);
+    await waitFor(() => expect(screen.getByTestId('budget-row-Recurring')).toBeTruthy());
+    expect(screen.getByTestId('budgets-left-total')).toHaveTextContent('$450.00'); // 600 - 150
+    expect(screen.getByTestId('budgets-left-across')).toHaveTextContent('$450.00');
+    expect(screen.getAllByText('$150.00 of $600.00')).toHaveLength(2); // summary + Groceries row
+    expect(screen.queryByText('$150.00 of $5600.00')).toBeNull();
+    expect(screen.getByTestId('budgets-recurring-note')).toBeTruthy();
+  });
 });
