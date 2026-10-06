@@ -87,6 +87,15 @@ jest.mock('../../lib/cloudSync', () => ({
   syncPushTokenToCloud: jest.fn(async () => {}),
 }));
 
+jest.mock('../../lib/customCategories', () => ({
+  MAX_CUSTOM_CATEGORY_NAME: 24,
+  getCustomCategories: jest.fn(async () => []),
+  addCustomCategory: jest.fn(),
+  removeCustomCategory: jest.fn(async () => []),
+  getCustomCategoriesSynced: jest.fn(async () => true),
+  setCustomCategoriesSynced: jest.fn(async () => {}),
+}));
+
 jest.mock('../../lib/reports', () => ({
   receiptsToCsv: jest.fn(() => 'store,amount\n'),
 }));
@@ -117,6 +126,11 @@ jest.mock('react-native', () => {
 });
 
 import SettingsScreen from '../../app/settings';
+import { getCustomCategories } from '../../lib/customCategories';
+import { getHouseholdMembers } from '../../lib/cloudSync';
+
+const mockGetCustomCategories = getCustomCategories as jest.Mock;
+const mockGetHouseholdMembers = getHouseholdMembers as jest.Mock;
 
 function fireBudgetLayouts(rowTestId: string) {
   const sectionTitle = screen.getByText('Categories & budgets');
@@ -137,6 +151,8 @@ describe('SettingsScreen budget-category deep-link', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     mockParams.current = { section: 'budgets', category: 'Groceries' };
+    mockGetCustomCategories.mockResolvedValue([]);
+    mockGetHouseholdMembers.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -190,4 +206,60 @@ describe('SettingsScreen budget-category deep-link', () => {
     });
     expect(mockFocusedInput).not.toHaveBeenCalled();
   });
+
+  it(
+    'does not latch on the section fallback when the custom-category row ' +
+      'is still loading, then retries scroll+focus after it is measured',
+    async () => {
+      // Members resolve immediately so the first timer would have latched
+      // under the pre-#78 bug (row missing → section Y → didAutoScroll).
+      // Custom categories stay pending until after that first fire.
+      mockParams.current = { section: 'budgets', category: 'Pets' };
+      let resolveCustoms!: (rows: { name: string; color: string }[]) => void;
+      mockGetCustomCategories.mockReturnValue(
+        new Promise((resolve) => {
+          resolveCustoms = resolve;
+        }),
+      );
+
+      render(<SettingsScreen />);
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await waitFor(() => expect(mockGetHouseholdMembers).toHaveBeenCalled());
+      await waitFor(() => expect(screen.getByTestId('budget-row-Groceries')).toBeTruthy());
+
+      const sectionTitle = screen.getByText('Categories & budgets');
+      fireEvent(sectionTitle.parent!, 'layout', {
+        nativeEvent: { layout: { y: 1000, x: 0, width: 300, height: 40 } },
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(150);
+      });
+      expect(mockScrollTo).toHaveBeenCalledTimes(1);
+      expect(mockScrollTo).toHaveBeenCalledWith({ y: 1000, animated: true });
+      expect(screen.queryByTestId('custom-budget-row-Pets')).toBeNull();
+
+      await act(async () => {
+        resolveCustoms([{ name: 'Pets', color: '#D6336C' }]);
+        await Promise.resolve();
+      });
+      await waitFor(() => expect(screen.getByTestId('custom-budget-row-Pets')).toBeTruthy());
+
+      fireBudgetLayouts('custom-budget-row-Pets');
+
+      await act(async () => {
+        jest.advanceTimersByTime(150);
+      });
+      expect(mockScrollTo).toHaveBeenCalledTimes(2);
+      expect(mockScrollTo).toHaveBeenNthCalledWith(2, { y: 1000, animated: true });
+
+      await act(async () => {
+        jest.advanceTimersByTime(400);
+      });
+      expect(mockFocusedInput).toHaveBeenCalledWith('budget-input-Pets');
+    },
+  );
 });
