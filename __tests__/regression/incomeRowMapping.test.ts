@@ -45,6 +45,7 @@ jest.mock('expo-sqlite', () => ({
       if (!sql.includes('FROM incomes')) return [];
       const uid = params[0] as string;
       let rows = mockIncomeRows.filter((r) => r.user_id === uid);
+      const { isInCalendarMonth } = require('../../lib/calendarDate');
 
       if (sql.includes('lower(source_name) LIKE')) {
         const q = params[1] as string;
@@ -56,6 +57,11 @@ jest.mock('expo-sqlite', () => ({
         );
         const hid = params[4] as string | undefined;
         rows = rows.filter((r) => mockMatchesHousehold(r, hid));
+      } else if (sql.includes('length(')) {
+        const start = params[1] as string;
+        const [year, month] = start.split('-').map(Number);
+        const hid = params[5] as string | undefined;
+        rows = rows.filter((r) => mockMatchesHousehold(r, hid) && isInCalendarMonth(r.date, year, month));
       } else {
         const hid = params[1] as string | undefined;
         rows = rows.filter((r) => mockMatchesHousehold(r, hid));
@@ -89,6 +95,7 @@ jest.mock('../../lib/cloudSync', () => ({
 import {
   getAllIncomes,
   getIncomeById,
+  getIncomesByMonth,
   getRecentIncomeSourceNames,
   searchIncomes,
   setCurrentHouseholdId,
@@ -199,6 +206,17 @@ describe('rowToIncome via income reads', () => {
 
     const byNotes = await searchIncomes('Birthday');
     expect(byNotes.map((i) => i.id)).toEqual(['s3']);
+  });
+
+  it('getIncomesByMonth stays in the civil month and active household', async () => {
+    seed({ id: 'in-month', date: '2026-03-15', household_id: 'hh1' });
+    seed({ id: 'first', date: '2026-03-01', household_id: 'hh1' });
+    seed({ id: 'prev', date: '2026-02-28', household_id: 'hh1' });
+    seed({ id: 'next', date: '2026-04-01', household_id: 'hh1' });
+    seed({ id: 'other-hh', date: '2026-03-20', household_id: 'hh-other' });
+
+    const rows = await getIncomesByMonth(2026, 3);
+    expect(rows.map((i) => i.id).sort()).toEqual(['first', 'in-month']);
   });
 });
 
