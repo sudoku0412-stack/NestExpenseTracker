@@ -43,10 +43,12 @@ import {
   getReviewQueueCount,
   getReviewQueueReceipts,
   removeFromReviewQueue,
+  setCurrentHouseholdId,
   setCurrentUserId,
 } from '../../lib/database';
 
 beforeEach(async () => {
+  setCurrentHouseholdId(null);
   await setCurrentUserId('u-review');
   runs.length = 0;
   queries.length = 0;
@@ -80,6 +82,28 @@ describe('review queue', () => {
 
   it('getReviewQueueCount returns the row count', async () => {
     await expect(getReviewQueueCount()).resolves.toBe(4);
+  });
+
+  it('list, count, and clear stay inside the active household', async () => {
+    setCurrentHouseholdId('hh-active');
+
+    await getReviewQueueReceipts();
+    expect(queries[0].sql).toMatch(/household_id IS NULL OR household_id = \?/i);
+    expect(queries[0].params).toEqual(['u-review', 'hh-active']);
+
+    await getReviewQueueCount();
+    expect(queries[1].sql).toMatch(/household_id IS NULL OR household_id = \?/i);
+    expect(queries[1].params).toEqual(['u-review', 'hh-active']);
+
+    await clearReviewQueue();
+    expect(runs[0].sql).toMatch(/household_id IS NULL OR household_id = \?/i);
+    expect(runs[0].params).toEqual(['u-review', 'hh-active']);
+  });
+
+  it('addToReviewQueue throws when unsigned', async () => {
+    await setCurrentUserId(null);
+    await expect(addToReviewQueue('r1')).rejects.toThrow(/No authenticated user/);
+    expect(runs).toHaveLength(0);
   });
 
   it('deleteReceipt also drops its queue entry', async () => {
