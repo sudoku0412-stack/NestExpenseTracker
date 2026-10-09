@@ -38,6 +38,7 @@ on:
       - '**/*.md'
       - 'docs/**'
       - 'landing/**'
+      - 'web/**'
 
 jobs:
   test:

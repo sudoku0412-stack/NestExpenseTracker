@@ -22,6 +22,7 @@ on:
       - '**/*.md'
       - 'docs/**'
       - 'landing/**'
+      - 'web/**'
   workflow_dispatch:
 
 concurrency:
