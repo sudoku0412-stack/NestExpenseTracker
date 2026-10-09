@@ -165,6 +165,19 @@ jest.mock('../../lib/secureStorage', () => ({
   setCloudMigrationDone: (...args: unknown[]) => mockSetCloudMigrationDone(...args),
 }));
 
+const mockApplyCustomCategories = jest.fn();
+const mockGetPendingCustomCategoryChanges = jest.fn(async () => ({
+  add: [] as unknown[],
+  remove: [] as string[],
+}));
+
+jest.mock('../../lib/customCategories', () => ({
+  applyCustomCategories: (...args: unknown[]) => mockApplyCustomCategories(...args),
+  clearPendingCustomCategoryChanges: jest.fn(async () => undefined),
+  getPendingCustomCategoryChanges: (...args: unknown[]) =>
+    mockGetPendingCustomCategoryChanges(...args),
+}));
+
 const mockNotifyLocalDataChanged = jest.fn();
 jest.mock('../../lib/dataSync', () => ({
   notifyLocalDataChanged: (...args: unknown[]) => mockNotifyLocalDataChanged(...args),
@@ -190,7 +203,7 @@ jest.mock('../../lib/database', () => ({
   deleteSavingsGoalFromCloud: (...args: unknown[]) => mockDeleteSavingsGoalFromCloud(...args),
 }));
 
-import { Receipt, Income, Settlement } from '../../types';
+import { Receipt, Income, Settlement, SavingsGoal } from '../../types';
 import {
   getHouseholdMemberPushTokens,
   getPushTokensForUids,
@@ -198,7 +211,9 @@ import {
   subscribeToHouseholdBudgets,
   subscribeToHouseholdIncomes,
   subscribeToHouseholdReceipts,
+  subscribeToHouseholdSavingsGoals,
   subscribeToHouseholdSettlements,
+  syncBudgetsToCloud,
   syncIncomeDeletionToCloud,
   syncIncomeToCloud,
   syncPhoneToCloud,
@@ -206,6 +221,7 @@ import {
   syncReceiptDeletionToCloud,
   syncReceiptToCloud,
   syncSavingsGoalDeletionToCloud,
+  syncSavingsGoalToCloud,
   syncSettlementToCloud,
   uploadReceiptPhoto,
 } from '../../lib/cloudSync';
@@ -266,6 +282,8 @@ beforeEach(() => {
   mockDeleteIncomeFromCloud.mockResolvedValue(undefined);
   mockUpsertSavingsGoalFromCloud.mockResolvedValue(undefined);
   mockDeleteSavingsGoalFromCloud.mockResolvedValue(undefined);
+  mockApplyCustomCategories.mockResolvedValue([]);
+  mockGetPendingCustomCategoryChanges.mockResolvedValue({ add: [], remove: [] });
   mockPutFile.mockResolvedValue(undefined);
   mockGetDownloadURL.mockResolvedValue('https://cdn.example/photo.jpg');
 });
@@ -422,6 +440,49 @@ describe('income and settlement shadow writes', () => {
     await syncSavingsGoalDeletionToCloud('g1', 'hh1');
     expect(mockStore.has('households/hh1/savingsGoals/g1')).toBe(false);
   });
+
+  it('syncSavingsGoalToCloud writes envelope fields and no-ops without a household', async () => {
+    const goal: SavingsGoal = {
+      id: 'g2',
+      name: 'Emergency',
+      targetUsd: 5000,
+      allocatedUsd: 1200,
+      notes: '3 months',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-20T00:00:00.000Z',
+    };
+    await syncSavingsGoalToCloud(goal, 'hh1');
+    expect(mockStore.get('households/hh1/savingsGoals/g2')).toEqual({
+      name: 'Emergency',
+      targetUsd: 5000,
+      allocatedUsd: 1200,
+      notes: '3 months',
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-20T00:00:00.000Z',
+    });
+
+    await syncSavingsGoalToCloud(goal, '');
+    expect(mockStore.has('households//savingsGoals/g2')).toBe(false);
+  });
+
+  it('syncBudgetsToCloud merges the snapshot onto the household doc without wiping members', async () => {
+    seed('households/hh1', { memberUids: ['u1', 'u2'], ownerUid: 'u1' });
+    await syncBudgetsToCloud('hh1', {
+      byCategory: { Groceries: 400, Dining: 150 },
+      alertsEnabled: true,
+    });
+    expect(mockStore.get('households/hh1')).toEqual(
+      expect.objectContaining({
+        memberUids: ['u1', 'u2'],
+        ownerUid: 'u1',
+        budgets: { byCategory: { Groceries: 400, Dining: 150 }, alertsEnabled: true },
+        updatedAt: 'SERVER_TS',
+      }),
+    );
+
+    await syncBudgetsToCloud('', { byCategory: { Groceries: 1 }, alertsEnabled: false });
+    expect(mockStore.get('households/hh1')?.memberUids).toEqual(['u1', 'u2']);
+  });
 });
 
 describe('household snapshot listeners', () => {
@@ -430,6 +491,8 @@ describe('household snapshot listeners', () => {
     expect(subscribeToHouseholdReceipts('hh1', '')).toBeNull();
     expect(subscribeToHouseholdSettlements('', 'u1')).toBeNull();
     expect(subscribeToHouseholdIncomes('hh1', '')).toBeNull();
+    expect(subscribeToHouseholdSavingsGoals('hh1', '')).toBeNull();
+    expect(subscribeToHouseholdSavingsGoals('', 'u1')).toBeNull();
     expect(subscribeToHouseholdBudgets('')).toBeNull();
   });
 
@@ -520,6 +583,67 @@ describe('household snapshot listeners', () => {
     );
   });
 
+  it('income listener skips this device pending writes so a local save is not re-applied', async () => {
+    subscribeToHouseholdIncomes('hh1', 'u1');
+    fireCollection('households/hh1/incomes', [
+      {
+        type: 'modified',
+        id: 'local-pending',
+        data: { sourceName: 'Skip me', amountUsd: 1, earnedBy: 'u1' },
+        hasPendingWrites: true,
+      },
+    ]);
+    await flush();
+
+    expect(mockUpsertIncomeFromCloud).not.toHaveBeenCalled();
+    expect(mockDeleteIncomeFromCloud).not.toHaveBeenCalled();
+  });
+
+  it('savings-goal listener skips pending writes, upserts remote envelopes, and applies removals', async () => {
+    const unsub = subscribeToHouseholdSavingsGoals('hh1', 'u1');
+    expect(unsub).toEqual(expect.any(Function));
+
+    fireCollection('households/hh1/savingsGoals', [
+      {
+        type: 'modified',
+        id: 'local-pending',
+        data: { name: 'Skip me', targetUsd: 1, allocatedUsd: 0 },
+        hasPendingWrites: true,
+      },
+      {
+        type: 'added',
+        id: 'g-remote',
+        data: {
+          name: 'Vacation',
+          targetUsd: 2000,
+          allocatedUsd: 350,
+          notes: 'July',
+          createdAt: '2026-09-01T00:00:00.000Z',
+          updatedAt: '2026-09-10T00:00:00.000Z',
+        },
+      },
+      { type: 'removed', id: 'g-gone' },
+    ]);
+    await flush();
+
+    expect(mockUpsertSavingsGoalFromCloud).toHaveBeenCalledTimes(1);
+    expect(mockUpsertSavingsGoalFromCloud).toHaveBeenCalledWith(
+      {
+        id: 'g-remote',
+        name: 'Vacation',
+        targetUsd: 2000,
+        allocatedUsd: 350,
+        notes: 'July',
+        createdAt: '2026-09-01T00:00:00.000Z',
+        updatedAt: '2026-09-10T00:00:00.000Z',
+      },
+      'u1',
+      'hh1',
+    );
+    expect(mockDeleteSavingsGoalFromCloud).toHaveBeenCalledWith('g-gone', 'u1', 'hh1');
+    expect(mockNotifyLocalDataChanged).toHaveBeenCalled();
+  });
+
   it('budget listener skips this device pending write and applies remote budgets', async () => {
     subscribeToHouseholdBudgets('hh1');
     const handlers = docListeners.get('households/hh1') ?? [];
@@ -541,6 +665,34 @@ describe('household snapshot listeners', () => {
       Groceries: 250,
       alertsEnabled: true,
     });
+    expect(mockNotifyLocalDataChanged).toHaveBeenCalled();
+  });
+
+  it('budget listener applies custom categories even when budgets are omitted', async () => {
+    subscribeToHouseholdBudgets('hh1');
+    const handlers = docListeners.get('households/hh1') ?? [];
+    expect(handlers.length).toBe(1);
+
+    await handlers[0]({
+      exists: true,
+      metadata: { hasPendingWrites: false },
+      data: () => ({}),
+    });
+    expect(mockApplyBudgetsSnapshot).not.toHaveBeenCalled();
+    expect(mockApplyCustomCategories).not.toHaveBeenCalled();
+
+    await handlers[0]({
+      exists: true,
+      metadata: { hasPendingWrites: false },
+      data: () => ({
+        customCategories: [{ name: 'Pets', color: '#D6336C' }, 'not-an-object'],
+      }),
+    });
+    expect(mockApplyBudgetsSnapshot).not.toHaveBeenCalled();
+    expect(mockApplyCustomCategories).toHaveBeenCalledWith('hh1', [
+      { name: 'Pets', color: '#D6336C' },
+      'not-an-object',
+    ]);
     expect(mockNotifyLocalDataChanged).toHaveBeenCalled();
   });
 });
