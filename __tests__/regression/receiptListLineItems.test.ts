@@ -120,4 +120,42 @@ describe('Regression: receipt list/single-fetch queries load line items (lib/dat
     expect(receipt?.lineItems).toHaveLength(1);
     expect(receipt?.lineItems?.[0].name).toBe('Detergent');
   });
+
+  it('parses splitWith, defaults a blank category to Other, and drops corrupt split JSON', async () => {
+    seedReceiptRow({ id: 'receipt-3' });
+    mockLineItemRows.push(
+      {
+        id: 'li-split',
+        receipt_id: 'receipt-3',
+        name: 'Pizza',
+        amount: 18,
+        category: '  ',
+        split_with: JSON.stringify(['self', 'u2']),
+      },
+      {
+        id: 'li-bad',
+        receipt_id: 'receipt-3',
+        name: 'Soda',
+        amount: 3,
+        category: null,
+        split_with: '{not-json',
+      },
+    );
+
+    const receipt = await getReceiptById('receipt-3');
+    expect(receipt?.lineItems).toEqual([
+      expect.objectContaining({
+        id: 'li-split',
+        name: 'Pizza',
+        category: 'Other',
+        splitWith: ['self', 'u2'],
+      }),
+      expect.objectContaining({
+        id: 'li-bad',
+        name: 'Soda',
+        category: 'Other',
+        splitWith: undefined,
+      }),
+    ]);
+  });
 });
