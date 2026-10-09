@@ -92,3 +92,43 @@ tbody tr.click { cursor: pointer; } tbody tr.click:hover { background: var(--bra
   .logo { padding: 0 8px 0 0; } .side .foot { margin: 0 0 0 auto; display: flex; }
   .nav { display: flex; gap: 4px; } .cols-2 { grid-template-columns: 1fr; }
 }
+
+/* Sign-in / product page */
+.landing { position: relative; min-height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+.backdrop { position: absolute; inset: 0 0 auto 0; height: 760px; z-index: 0; pointer-events: none; }
+.backdrop::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(var(--line) 1.2px, transparent 1.2px); background-size: 22px 22px; mask-image: linear-gradient(#000 30%, transparent 95%); -webkit-mask-image: linear-gradient(#000 30%, transparent 95%); }
+.blob { position: absolute; border-radius: 50%; filter: blur(90px); }
+.blob.a { width: 520px; height: 420px; left: -120px; top: -140px; background: rgba(247,213,120,.5); }
+.blob.b { width: 560px; height: 460px; right: -140px; top: -120px; background: rgba(120,220,180,.42); }
+@media (prefers-color-scheme: dark) { .blob.a { background: rgba(16,185,129,.2); } .blob.b { background: rgba(79,142,247,.16); } }
+.lp-top, .lp-main, .lp-foot { position: relative; z-index: 1; width: min(1160px, 100% - 32px); margin-inline: auto; }
+.lp-top { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+.lp-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
+.lp-brand img { width: 32px; height: 32px; border-radius: 9px; }
+.lp-brand.sm { font-size: 16px; } .lp-brand.sm img { width: 28px; height: 28px; }
+.dotmark { color: var(--brand); }
+.lp-by { font-size: 14px; color: var(--ink-3); } .lp-by b, .lp-foot b { color: var(--ink); }
+.lp-main { flex: 1; display: grid; grid-template-columns: 1.15fr .85fr; gap: 56px; align-items: center; padding: 28px 0 56px; }
+.lp-copy h1 { font-size: clamp(38px, 5.2vw, 62px); line-height: 1.05; letter-spacing: -.04em; margin-top: 18px; max-width: 13ch; }
+.lp-copy h1 em { font-style: normal; background: linear-gradient(100deg, #10b981, #4f8ef7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+.lede { margin-top: 18px; max-width: 54ch; font-size: 17px; color: var(--ink-2); }
+.lp-feats { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 16px 22px; margin-top: 30px; }
+.lp-feats li { display: flex; gap: 12px; }
+.lp-feats .ico { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--brand-soft); display: grid; place-items: center; font-size: 20px; }
+.lp-feats b { font-size: 15px; } .lp-feats p { font-size: 13.5px; color: var(--ink-3); margin-top: 2px; }
+.lp-stores { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.store { display: inline-flex; align-items: center; gap: 11px; padding: 10px 20px 10px 16px; border-radius: 14px; background: var(--ink); color: var(--bg); min-width: 176px; }
+.store:hover { transform: translateY(-2px); }
+.store svg { width: 24px; height: 24px; flex: none; }
+.store small { display: block; font-size: 10.5px; opacity: .75; line-height: 1.1; } .store b { display: block; font-size: 16px; line-height: 1.2; }
+.lp-card { padding: 30px; }
+.lp-card h2 { font-size: 24px; letter-spacing: -.03em; margin-bottom: 4px; display: block; }
+.btn.big { height: 46px; justify-content: center; width: 100%; }
+.or { display: flex; align-items: center; gap: 12px; color: var(--ink-3); font-size: 13px; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.lp-foot { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: space-between; align-items: center; padding: 36px 0 44px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-3); }
+.lp-foot p { margin-top: 6px; }
+.lp-links { display: flex; gap: 26px; } .lp-links a:hover { color: var(--ink); }
+@media (max-width: 920px) { .lp-main { grid-template-columns: 1fr; gap: 36px; } .lp-card { order: -1; } .lp-feats { grid-template-columns: 1fr; } }
