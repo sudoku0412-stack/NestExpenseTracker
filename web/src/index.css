@@ -132,3 +132,12 @@ tbody tr.click { cursor: pointer; } tbody tr.click:hover { background: var(--bra
 .lp-foot p { margin-top: 6px; }
 .lp-links { display: flex; gap: 26px; } .lp-links a:hover { color: var(--ink); }
 @media (max-width: 920px) { .lp-main { grid-template-columns: 1fr; gap: 36px; } .lp-card { order: -1; } .lp-feats { grid-template-columns: 1fr; } }
+
+/* Colourful KPI tiles */
+.kpi { position: relative; overflow: hidden; --tone: var(--brand); border-color: color-mix(in srgb, var(--tone) 28%, var(--line));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--tone) 16%, var(--surface)) 0%, var(--surface) 70%); }
+.kpi::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--tone); }
+.kpi .label { color: color-mix(in srgb, var(--tone) 70%, var(--ink-2)); padding-right: 48px; }
+.kpi-ico { position: absolute; right: 14px; top: 14px; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: color-mix(in srgb, var(--tone) 20%, transparent); }
+.tone-amber { --tone: #f2b544; } .tone-green { --tone: #10b981; } .tone-blue { --tone: #4f8ef7; }
+.tone-red { --tone: #d4504a; } .tone-violet { --tone: #9b6bf2; } .tone-teal { --tone: #2db5a3; } .tone-rose { --tone: #e9738a; }

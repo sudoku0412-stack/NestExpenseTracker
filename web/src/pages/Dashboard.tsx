@@ -54,13 +54,13 @@ export default function Dashboard() {
       </div>
 
       <div className="grid kpis">
-        <div className="card kpi"><div className="label">Spent</div><div className="value">{fmt(stats.totalSpent)}</div>
+        <div className="card kpi tone-amber"><span className="kpi-ico" aria-hidden="true">🧾</span><div className="label">Spent</div><div className="value">{fmt(stats.totalSpent)}</div>
           <div className="note">{delta === null ? 'No spending last month' : <span className={delta > 0 ? 'over' : 'ok'}>{delta > 0 ? '▲' : '▼'} {pct(Math.abs(delta))}</span>} {delta !== null && 'vs last month'}</div></div>
-        <div className="card kpi"><div className="label">Earned</div><div className="value">{fmt(cash.totalEarned)}</div><div className="note">{cash.incomeCount} income {cash.incomeCount === 1 ? 'entry' : 'entries'}</div></div>
-        <div className="card kpi"><div className="label">Net</div><div className={`value ${cash.net >= 0 ? 'ok' : 'over'}`}>{fmt(cash.net)}</div><div className="note">Earned minus spent</div></div>
-        <div className="card kpi"><div className="label">Invested</div><div className="value">{fmt(cash.investedUsd)}</div><div className="note">{cash.savingsRate === null ? 'No income to compare' : `${pct(cash.savingsRate * 100)} of earnings`}</div></div>
-        <div className="card kpi"><div className="label">Receipts</div><div className="value">{stats.receiptCount}</div><div className="note">Avg {fmt(stats.receiptCount ? stats.totalSpent / stats.receiptCount : 0)} each</div></div>
-        <div className="card kpi"><div className="label">{m.isCurrent ? 'Projected month-end' : 'Daily average'}</div><div className="value">{fmt(m.isCurrent ? m.projected : m.dayAvg)}</div><div className="note">{fmt(m.dayAvg)} per day</div></div>
+        <div className="card kpi tone-green"><span className="kpi-ico" aria-hidden="true">💰</span><div className="label">Earned</div><div className="value">{fmt(cash.totalEarned)}</div><div className="note">{cash.incomeCount} income {cash.incomeCount === 1 ? 'entry' : 'entries'}</div></div>
+        <div className={`card kpi tone-${cash.net >= 0 ? 'blue' : 'red'}`}><span className="kpi-ico" aria-hidden="true">⚖️</span><div className="label">Net</div><div className={`value ${cash.net >= 0 ? 'ok' : 'over'}`}>{fmt(cash.net)}</div><div className="note">Earned minus spent</div></div>
+        <div className="card kpi tone-violet"><span className="kpi-ico" aria-hidden="true">📈</span><div className="label">Invested</div><div className="value">{fmt(cash.investedUsd)}</div><div className="note">{cash.savingsRate === null ? 'No income to compare' : `${pct(cash.savingsRate * 100)} of earnings`}</div></div>
+        <div className="card kpi tone-teal"><span className="kpi-ico" aria-hidden="true">🗂️</span><div className="label">Receipts</div><div className="value">{stats.receiptCount}</div><div className="note">Avg {fmt(stats.receiptCount ? stats.totalSpent / stats.receiptCount : 0)} each</div></div>
+        <div className="card kpi tone-rose"><span className="kpi-ico" aria-hidden="true">🔮</span><div className="label">{m.isCurrent ? 'Projected month-end' : 'Daily average'}</div><div className="value">{fmt(m.isCurrent ? m.projected : m.dayAvg)}</div><div className="note">{fmt(m.dayAvg)} per day</div></div>
       </div>
 
       {noData && <div className="card empty" style={{ marginBottom: 16 }}>Nothing recorded for {label}. Add receipts or income on the mobile app or the pages on the left.</div>}
