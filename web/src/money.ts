@@ -10,6 +10,7 @@ export function useMoney(): (amountUsd: number) => string {
     const m = intPart.match(/^(\D*)(\d+)$/);
     const grouped = m ? m[1] + m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',') : intPart;
     const out = rest !== undefined ? `${grouped}.${rest}` : grouped;
-    return amountUsd < 0 ? `-${out}` : out;
+    // U+2212 minus: a plain hyphen lets the browser wrap the sign onto its own line.
+    return amountUsd < 0 ? `\u2212${out}` : out;
   };
 }
