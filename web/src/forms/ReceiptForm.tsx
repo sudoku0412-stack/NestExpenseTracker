@@ -15,22 +15,24 @@ interface Item { key: string; name: string; amount: string; category: string }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export default function ReceiptForm({ receipt, onClose }: { receipt?: Receipt; onClose: () => void }) {
+export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Receipt; draft?: Partial<Receipt>; onClose: () => void }) {
   const { user } = useAuth();
   const { householdId, members, customCategories, currency: displayCurrency } = useData();
-  const entryCurrency: CurrencyCode = receipt?.originalCurrency ?? displayCurrency;
+  // `draft` pre-fills a NEW receipt (for example from an AI scan); `receipt` edits an existing one.
+  const src = (receipt ?? draft) as Receipt | undefined;
+  const entryCurrency: CurrencyCode = src?.originalCurrency ?? displayCurrency;
   const [currency, setCurrency] = useState<CurrencyCode>(entryCurrency);
   const dec = currencyDecimals(currency);
   const toEntry = (usd: number | undefined) => (usd == null ? '' : convertUsdToEntry(usd, currency).toFixed(dec));
 
   const allCategories = useMemo(() => [...(ALL_CATEGORIES as string[]), ...customCategories.map((c) => c.name)], [customCategories]);
-  const [store, setStore] = useState(receipt?.storeName ?? '');
-  const [date, setDate] = useState(receipt ? calendarDateKey(receipt.date) ?? formatLocalDate(new Date()) : formatLocalDate(new Date()));
-  const [total, setTotal] = useState(toEntry(receipt?.totalAmount));
-  const [tax, setTax] = useState(toEntry(receipt?.taxAmount));
-  const [tags, setTags] = useState<string[]>(receipt?.categoryTags?.length ? receipt.categoryTags : receipt ? [receipt.category] : ['Groceries']);
-  const [items, setItems] = useState<Item[]>((receipt?.lineItems ?? []).map((it) => ({ key: it.id, name: it.name, amount: toEntry(it.amount), category: (it.category as string) || receipt?.category || 'Other' })));
-  const [notes, setNotes] = useState(receipt?.notes ?? '');
+  const [store, setStore] = useState(src?.storeName ?? '');
+  const [date, setDate] = useState(src?.date ? calendarDateKey(src.date) ?? formatLocalDate(new Date()) : formatLocalDate(new Date()));
+  const [total, setTotal] = useState(toEntry(src?.totalAmount));
+  const [tax, setTax] = useState(toEntry(src?.taxAmount));
+  const [tags, setTags] = useState<string[]>(src?.categoryTags?.length ? src.categoryTags : src?.category ? [src.category] : ['Groceries']);
+  const [items, setItems] = useState<Item[]>((src?.lineItems ?? []).map((it) => ({ key: it.id, name: it.name, amount: toEntry(it.amount), category: (it.category as string) || src?.category || 'Other' })));
+  const [notes, setNotes] = useState(src?.notes ?? '');
   const [paidBy, setPaidBy] = useState(receipt?.paidBy ?? user?.uid ?? '');
   const [splitOn, setSplitOn] = useState(Boolean(receipt?.split?.enabled));
   const [method, setMethod] = useState<Method>(receipt?.split?.method ?? 'equal');

@@ -4,6 +4,8 @@ import type { Receipt } from '@app/types';
 import { useData } from '../data';
 import { dateLabel, inMonth } from '../lib/stats';
 import ReceiptForm from '../forms/ReceiptForm';
+import ScanReceipt from '../forms/ScanReceipt';
+import { usePremium } from '../premium';
 import { deleteReceipt } from '../lib/writes';
 import { useMoney } from '../money';
 import { MonthPicker, usePeriod } from '../period';
@@ -16,7 +18,9 @@ export default function Receipts() {
   const [cat, setCat] = useState('all');
   const [scope, setScope] = useState<'month' | 'all'>('month');
   const [open, setOpen] = useState<Receipt | null>(null);
-  const [form, setForm] = useState<{ receipt?: Receipt } | null>(null);
+  const [form, setForm] = useState<{ receipt?: Receipt; draft?: Partial<Receipt> } | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const { premium } = usePremium();
 
   const categories = useMemo(() => [...ALL_CATEGORIES as string[], ...customCategories.map((c) => c.name)], [customCategories]);
   const rows = useMemo(() => {
@@ -34,6 +38,7 @@ export default function Receipts() {
         <div><h1>Receipts</h1><p className="sub">{rows.length} {rows.length === 1 ? 'receipt' : 'receipts'} · {fmt(total)}{scope === 'month' ? ` · ${label}` : ''}</p></div>
         <div className="row-between">
           {scope === 'month' && <MonthPicker />}
+          <button className="btn" onClick={() => (premium ? setScanning(true) : alert("Scanning receipts with AI is a Premium feature. Upgrade in the mobile app, or add the receipt by hand."))}>📸 Scan{premium ? '' : ' 🔒'}</button>
           <button className="btn primary" onClick={() => setForm({})}>+ Add receipt</button>
         </div>
       </div>
@@ -88,7 +93,8 @@ export default function Receipts() {
         </div>
       )}
 
-      {form && <ReceiptForm receipt={form.receipt} onClose={() => setForm(null)} />}
+      {scanning && <ScanReceipt onClose={() => setScanning(false)} onDraft={(d) => { setScanning(false); setForm({ draft: d }); }} />}
+      {form && <ReceiptForm receipt={form.receipt} draft={form.draft} onClose={() => setForm(null)} />}
     </>
   );
 }

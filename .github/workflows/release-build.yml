@@ -23,6 +23,7 @@ on:
       - 'docs/**'
       - 'landing/**'
       - 'web/**'
+      - 'workers/**'
   workflow_dispatch:
 
 concurrency:

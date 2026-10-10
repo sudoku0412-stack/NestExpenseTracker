@@ -7,6 +7,7 @@ import type { InvestmentAccount, InvestmentKind } from '@app/types';
 import { useAuth } from '../auth';
 import { Modal } from '../components';
 import { useData } from '../data';
+import { PremiumGate } from '../premium';
 import { deleteInvestment, saveInvestment, saveInvestmentSnapshot } from '../lib/writes';
 import { useMoney } from '../money';
 
@@ -16,6 +17,10 @@ const KIND_COLOR: Record<InvestmentKind, string> = { stocks: '#4f8ef7', etf: '#9
 type Dialog = { kind: 'new' } | { kind: 'edit'; account: InvestmentAccount } | { kind: 'deposit' | 'withdraw' | 'value'; account: InvestmentAccount } | { kind: 'history'; account: InvestmentAccount };
 
 export default function Investments() {
+  return <PremiumGate feature="Investments"><InvestmentsPage /></PremiumGate>;
+}
+
+function InvestmentsPage() {
   const { user } = useAuth();
   const { investments, investmentSnapshots, currency } = useData();
   const fmt = useMoney();
