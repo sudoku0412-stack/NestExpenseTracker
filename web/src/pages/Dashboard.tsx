@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { computeBudgetOverview } from '@app/lib/budgetOverview';
+import { budgetStatus, computeBudgetOverview } from '@app/lib/budgetOverview';
 import { computeCashflow } from '@app/lib/cashflowStats';
 import { computeStats } from '@app/lib/dashboardStats';
 import { categoryIcon } from '@app/constants/categories';
@@ -43,6 +43,8 @@ export default function Dashboard() {
 
   const { stats, cash } = m;
   const delta = m.prevSpent > 0 ? ((stats.totalSpent - m.prevSpent) / m.prevSpent) * 100 : null;
+  const budgetState = budgetStatus(m.budget.totalSpent, m.budget.totalBudget);
+  const budgetTone = budgetState === 'over' ? 'red' : budgetState === 'watch' ? 'amber' : 'green';
   const noData = m.rs.length === 0 && m.is.length === 0;
   const catColor = (i: number) => SERIES[i % SERIES.length];
 
@@ -55,11 +57,17 @@ export default function Dashboard() {
 
       <div className="grid kpis">
         <div className="card kpi tone-amber"><span className="kpi-ico" aria-hidden="true">🧾</span><div className="label">Spent</div><div className="value">{fmt(stats.totalSpent)}</div>
-          <div className="note">{delta === null ? 'No spending last month' : <span className={delta > 0 ? 'over' : 'ok'}>{delta > 0 ? '▲' : '▼'} {pct(Math.abs(delta))}</span>} {delta !== null && 'vs last month'}</div></div>
+          <div className="note">{delta === null ? 'No spending last month' : <span className={delta > 0 ? 'over' : 'ok'}>{delta > 0 ? '▲' : '▼'} {pct(Math.abs(delta))}</span>} {delta !== null && 'vs last month'} · {stats.receiptCount} {stats.receiptCount === 1 ? 'receipt' : 'receipts'}</div></div>
         <div className="card kpi tone-green"><span className="kpi-ico" aria-hidden="true">💰</span><div className="label">Earned</div><div className="value">{fmt(cash.totalEarned)}</div><div className="note">{cash.incomeCount} income {cash.incomeCount === 1 ? 'entry' : 'entries'}</div></div>
         <div className={`card kpi tone-${cash.net >= 0 ? 'blue' : 'red'}`}><span className="kpi-ico" aria-hidden="true">⚖️</span><div className="label">Net</div><div className={`value ${cash.net >= 0 ? 'ok' : 'over'}`}>{fmt(cash.net)}</div><div className="note">Earned minus spent</div></div>
         <div className="card kpi tone-violet"><span className="kpi-ico" aria-hidden="true">📈</span><div className="label">Invested</div><div className="value">{fmt(cash.investedUsd)}</div><div className="note">{cash.savingsRate === null ? 'No income to compare' : `${pct(cash.savingsRate * 100)} of earnings`}</div></div>
-        <div className="card kpi tone-teal"><span className="kpi-ico" aria-hidden="true">🗂️</span><div className="label">Receipts</div><div className="value">{stats.receiptCount}</div><div className="note">Avg {fmt(stats.receiptCount ? stats.totalSpent / stats.receiptCount : 0)} each</div></div>
+        {m.budget.lines.length === 0 ? (
+          <div className="card kpi tone-teal"><span className="kpi-ico" aria-hidden="true">🎯</span><div className="label">Budget left</div><div className="value">&mdash;</div><div className="note">No budgets set</div></div>
+        ) : (
+          <div className={`card kpi tone-${budgetTone}`}><span className="kpi-ico" aria-hidden="true">🎯</span><div className="label">{m.budget.leftOfTotal >= 0 ? 'Budget left' : 'Over budget'}</div>
+            <div className={`value ${STATUS_CLASS[budgetState]}`}>{fmt(Math.abs(m.budget.leftOfTotal))}</div>
+            <div className="note">{fmt(m.budget.totalSpent)} of {fmt(m.budget.totalBudget)}</div></div>
+        )}
         <div className="card kpi tone-rose"><span className="kpi-ico" aria-hidden="true">🔮</span><div className="label">{m.isCurrent ? 'Projected month-end' : 'Daily average'}</div><div className="value">{fmt(m.isCurrent ? m.projected : m.dayAvg)}</div><div className="note">{fmt(m.dayAvg)} per day</div></div>
       </div>
 
