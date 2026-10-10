@@ -8,7 +8,7 @@ import {
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { CurrencyCode } from '@app/lib/currency';
-import type { Income, Receipt, SavingsGoal, Settlement } from '@app/types';
+import type { Income, InvestmentAccount, InvestmentKind, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
 import { useAuth } from './auth';
 import { db } from './firebase';
 
@@ -36,6 +36,8 @@ interface DataValue {
   incomes: Income[];
   settlements: Settlement[];
   goals: SavingsGoal[];
+  investments: InvestmentAccount[];
+  investmentSnapshots: InvestmentSnapshot[];
   currency: CurrencyCode;
   setCurrency: (c: CurrencyCode) => void;
 }
@@ -116,6 +118,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [investments, setInvestments] = useState<InvestmentAccount[]>([]);
+  const [investmentSnapshots, setInvestmentSnapshots] = useState<InvestmentSnapshot[]>([]);
   const [loaded, setLoaded] = useState({ receipts: false, incomes: false, settlements: false });
   const [error, setError] = useState<string | null>(null);
   const [currency, setCurrencyState] = useState<CurrencyCode>(readCurrency);
@@ -137,6 +141,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, [user]);
+
+  // Personal investments live under the user's own doc, not the household.
+  useEffect(() => {
+    setInvestments([]);
+    setInvestmentSnapshots([]);
+    if (!user) return;
+    const base = doc(db, 'users', user.uid);
+    const kinds: InvestmentKind[] = ['stocks', 'etf', 'crypto', 'retirement', 'savings', 'other'];
+    const a = onSnapshot(collection(base, 'investmentAccounts'), (snap) =>
+      setInvestments(snap.docs.map((x) => {
+        const d = x.data();
+        return { id: x.id, name: str(d.name), kind: kinds.includes(d.kind) ? d.kind : 'other', contributedUsd: num(d.contributedUsd), valueUsd: num(d.valueUsd), notes: d.notes ?? undefined, createdAt: str(d.createdAt), updatedAt: str(d.updatedAt) };
+      })),
+      () => undefined);
+    const s = onSnapshot(collection(base, 'investmentSnapshots'), (snap) =>
+      setInvestmentSnapshots(snap.docs.map((x) => {
+        const d = x.data();
+        return { id: x.id, accountId: str(d.accountId), date: str(d.date), valueUsd: num(d.valueUsd), contributedUsd: num(d.contributedUsd), createdAt: str(d.createdAt) };
+      })),
+      () => undefined);
+    return () => { a(); s(); };
   }, [user]);
 
   // 2. Live subscriptions for the household.
@@ -249,6 +275,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       incomes,
       settlements,
       goals,
+      investments,
+      investmentSnapshots,
       currency,
       setCurrency: (c) => {
         setCurrencyState(c);
@@ -259,7 +287,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
       },
     };
-  }, [householdId, loaded, error, members, budgets, budgetAlerts, customCategories, receipts, incomes, settlements, goals, currency]);
+  }, [householdId, loaded, error, members, budgets, budgetAlerts, customCategories, receipts, incomes, settlements, goals, investments, investmentSnapshots, currency]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

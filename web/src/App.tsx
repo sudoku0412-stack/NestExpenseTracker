@@ -9,6 +9,7 @@ import Recurring from './pages/Recurring';
 import Reports from './pages/Reports';
 import Dashboard from './pages/Dashboard';
 import Incomes from './pages/Incomes';
+import Investments from './pages/Investments';
 import Login from './pages/Login';
 import Receipts from './pages/Receipts';
 import { CURRENCIES } from '@app/lib/currency';
@@ -27,6 +28,7 @@ function Shell() {
             <NavLink to="/income">💼 Income</NavLink>
             <NavLink to="/reports">📈 Reports</NavLink>
             <NavLink to="/budgets">🎯 Budgets</NavLink>
+            <NavLink to="/investments">📊 Investments</NavLink>
             <NavLink to="/goals">🐷 Savings goals</NavLink>
             <NavLink to="/balances">🤝 Balances</NavLink>
             <NavLink to="/recurring">🔁 Recurring</NavLink>
@@ -51,6 +53,7 @@ function Shell() {
               <Route path="/income" element={<Incomes />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/budgets" element={<Budgets />} />
+              <Route path="/investments" element={<Investments />} />
               <Route path="/goals" element={<Goals />} />
               <Route path="/balances" element={<Balances />} />
               <Route path="/recurring" element={<Recurring />} />

@@ -189,3 +189,5 @@ tbody tr.click { cursor: pointer; } tbody tr.click:hover { background: var(--bra
 .modal input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--brand); }
 
 .modal label.switch-row { display: flex; align-items: center; justify-content: space-between; }
+
+.big-num { font-size: 26px; font-weight: 800; letter-spacing: -.03em; margin-top: 10px; }
