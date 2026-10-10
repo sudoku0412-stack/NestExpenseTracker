@@ -39,15 +39,15 @@ export default function Incomes() {
       </div>
       <div className="card">
         {rows.length === 0 ? <div className="empty">No income for {label}.</div> : (
-          <table>
-            <thead><tr><th>Date</th><th>Source</th><th>Type</th><th>Earned by</th><th className="num">Amount</th><th /></tr></thead>
+          <div className="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Source</th><th>Type</th><th className="hide-sm">Earned by</th><th className="num">Amount</th><th /></tr></thead>
             <tbody>
               {rows.map((i) => (
                 <tr key={i.id}>
                   <td>{dateLabel(i.date)}</td>
                   <td>{i.sourceName}{i.recurring || i.isRecurringOccurrence ? ' 🔁' : ''}</td>
                   <td><span className="chip" style={{ background: `${INCOME_COLORS[i.category] ?? '#8e96aa'}22`, color: 'var(--ink)' }}>{INCOME_LABELS[i.category] ?? i.category}</span></td>
-                  <td className="muted">{memberName(i.earnedBy)}</td>
+                  <td className="muted hide-sm">{memberName(i.earnedBy)}</td>
                   <td className="num">{fmt(i.amountUsd)}</td>
                   <td className="num"><button className="btn sm danger" onClick={async () => {
                     if (householdId && confirm(`Delete "${i.sourceName}"? This also removes it on every device.`)) await deleteIncome(householdId, i.id);
@@ -55,7 +55,7 @@ export default function Incomes() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
       {adding && <AddIncome onClose={() => setAdding(false)} onSave={async (v) => {
