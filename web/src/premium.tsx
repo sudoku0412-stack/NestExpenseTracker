@@ -2,6 +2,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from './auth';
 import { db } from './firebase';
+import { premiumFromChecks, promoGrantsPremium } from './lib/premiumStatus';
 
 export const API_BASE = 'https://nest-web-api.kmaz285.workers.dev';
 export const APP_STORE = 'https://apps.apple.com/us/app/nestexpensetracker/id6797353891';
@@ -25,11 +26,7 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
       let promo = false;
       try {
         const snap = await getDoc(doc(db, 'promoRedemptions', user.uid));
-        const d = snap.data();
-        if (d) {
-          const until = (d.freeUntil as { toDate?: () => Date } | null)?.toDate?.();
-          promo = d.grantsPro === true || (!!until && until.getTime() > Date.now());
-        }
+        promo = promoGrantsPremium(snap.data());
       } catch { /* no promo */ }
       let sub: boolean | null = null;
       try {
@@ -37,8 +34,7 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
         if (res.ok) sub = ((await res.json()) as { premium: boolean }).premium;
       } catch { /* leave null */ }
       if (cancelled) return;
-      if (promo || sub) setValue({ status: 'ready', premium: true });
-      else setValue({ status: sub === null ? 'unavailable' : 'ready', premium: false });
+      setValue(premiumFromChecks(promo, sub));
     })();
     return () => { cancelled = true; };
   }, [user]);
