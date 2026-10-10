@@ -278,3 +278,12 @@ export interface InvestmentSnapshot {
   contributedUsd: number;
   createdAt: string;
 }
+
+/** A person in the signed-in user's household (see lib/cloudSync.ts getHouseholdMembers). */
+export type HouseholdMember = {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  role: 'owner' | 'member';
+  isYou: boolean;
+};

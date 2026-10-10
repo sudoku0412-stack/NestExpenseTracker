@@ -8,7 +8,7 @@ import {
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { CurrencyCode } from '@app/lib/currency';
-import type { Income, Receipt, Settlement } from '@app/types';
+import type { Income, Receipt, SavingsGoal, Settlement } from '@app/types';
 import { useAuth } from './auth';
 import { db } from './firebase';
 
@@ -35,6 +35,7 @@ interface DataValue {
   receipts: Receipt[];
   incomes: Income[];
   settlements: Settlement[];
+  goals: SavingsGoal[];
   currency: CurrencyCode;
   setCurrency: (c: CurrencyCode) => void;
 }
@@ -114,6 +115,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loaded, setLoaded] = useState({ receipts: false, incomes: false, settlements: false });
   const [error, setError] = useState<string | null>(null);
   const [currency, setCurrencyState] = useState<CurrencyCode>(readCurrency);
@@ -142,6 +144,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setReceipts([]);
     setIncomes([]);
     setSettlements([]);
+    setGoals([]);
     setLoaded({ receipts: false, incomes: false, settlements: false });
     if (!householdId) return;
     const subs: Unsubscribe[] = [];
@@ -215,6 +218,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fail,
       ),
     );
+    subs.push(
+      onSnapshot(
+        collection(base, 'savingsGoals'),
+        (snap) =>
+          setGoals(
+            snap.docs.map((x) => {
+              const d = x.data();
+              return { id: x.id, name: str(d.name), targetUsd: num(d.targetUsd), allocatedUsd: num(d.allocatedUsd), notes: d.notes ?? undefined, householdId, createdAt: str(d.createdAt), updatedAt: str(d.updatedAt) };
+            }),
+          ),
+        fail,
+      ),
+    );
     return () => subs.forEach((u) => u());
   }, [householdId]);
 
@@ -232,6 +248,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       receipts,
       incomes,
       settlements,
+      goals,
       currency,
       setCurrency: (c) => {
         setCurrencyState(c);
@@ -242,7 +259,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
       },
     };
-  }, [householdId, loaded, error, members, budgets, budgetAlerts, customCategories, receipts, incomes, settlements, currency]);
+  }, [householdId, loaded, error, members, budgets, budgetAlerts, customCategories, receipts, incomes, settlements, goals, currency]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

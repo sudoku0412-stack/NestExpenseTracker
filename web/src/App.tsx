@@ -2,7 +2,10 @@ import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
 import { useData } from './data';
 import { PeriodProvider } from './period';
+import Balances from './pages/Balances';
 import Budgets from './pages/Budgets';
+import Goals from './pages/Goals';
+import Recurring from './pages/Recurring';
 import Dashboard from './pages/Dashboard';
 import Incomes from './pages/Incomes';
 import Login from './pages/Login';
@@ -22,6 +25,9 @@ function Shell() {
             <NavLink to="/receipts">🧾 Receipts</NavLink>
             <NavLink to="/income">💼 Income</NavLink>
             <NavLink to="/budgets">🎯 Budgets</NavLink>
+            <NavLink to="/goals">🐷 Savings goals</NavLink>
+            <NavLink to="/balances">🤝 Balances</NavLink>
+            <NavLink to="/recurring">🔁 Recurring</NavLink>
           </nav>
           <div className="foot">
             <select value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)} aria-label="Display currency">
@@ -42,6 +48,9 @@ function Shell() {
               <Route path="/receipts" element={<Receipts />} />
               <Route path="/income" element={<Incomes />} />
               <Route path="/budgets" element={<Budgets />} />
+              <Route path="/goals" element={<Goals />} />
+              <Route path="/balances" element={<Balances />} />
+              <Route path="/recurring" element={<Recurring />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           )}

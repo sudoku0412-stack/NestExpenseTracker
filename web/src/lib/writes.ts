@@ -1,4 +1,4 @@
-import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { convertEntryToUsd, type CurrencyCode } from '@app/lib/currency';
 import type { IncomeCategory } from '@app/types';
 import { db } from '../firebase';
@@ -97,3 +97,36 @@ export const setCategoryBudget = (householdId: string, category: string, amountU
 
 export const setBudgetAlertsEnabled = (householdId: string, enabled: boolean) =>
   setDoc(doc(db, 'households', householdId), { budgets: { alertsEnabled: enabled }, updatedAt: serverTimestamp() }, { merge: true });
+
+/** Settle up: a ledger entry only, never a receipt. `fromUid` pays `toUid`. */
+export async function addSettlement(householdId: string, fromUid: string, toUid: string, amountUsd: number): Promise<void> {
+  const id = crypto.randomUUID();
+  await setDoc(doc(db, 'households', householdId, 'settlements', id), {
+    fromUid,
+    toUid,
+    amountUsd: Math.round(amountUsd * 100) / 100,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export interface GoalInput { name: string; targetUsd: number; allocatedUsd: number; notes?: string }
+
+export async function saveGoal(householdId: string, goal: GoalInput & { id?: string; createdAt?: string }): Promise<void> {
+  const now = new Date().toISOString();
+  const id = goal.id ?? crypto.randomUUID();
+  await setDoc(doc(db, 'households', householdId, 'savingsGoals', id), {
+    name: goal.name.trim(),
+    targetUsd: goal.targetUsd,
+    allocatedUsd: Math.max(0, goal.allocatedUsd),
+    notes: goal.notes?.trim() || null,
+    createdAt: goal.createdAt ?? now,
+    updatedAt: now,
+  });
+}
+
+export const deleteGoal = (householdId: string, id: string) =>
+  deleteDoc(doc(db, 'households', householdId, 'savingsGoals', id));
+
+/** Stop a recurring schedule; the rows it already created stay. */
+export const stopRecurring = (householdId: string, collection: 'receipts' | 'incomes', id: string) =>
+  updateDoc(doc(db, 'households', householdId, collection, id), { recurring: null, updatedAt: new Date().toISOString() });

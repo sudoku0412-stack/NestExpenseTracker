@@ -1,4 +1,4 @@
-import { Receipt, Settlement, Income, SavingsGoal } from '../types';
+import { Receipt, Settlement, Income, SavingsGoal, HouseholdMember } from '../types';
 import {
   applyCustomCategories,
   clearPendingCustomCategoryChanges,
@@ -1065,13 +1065,7 @@ export async function uploadReceiptPhoto(args: {
 
 // ─── invites + household membership (Phase 3) ─────────────────────────────
 
-export type HouseholdMember = {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-  role: 'owner' | 'member';
-  isYou: boolean;
-};
+export type { HouseholdMember } from '../types';
 
 export type PendingInvite = {
   email: string;
