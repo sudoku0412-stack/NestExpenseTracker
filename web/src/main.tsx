@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './auth';
 import { DataProvider } from './data';
+import { PremiumProvider } from './premium';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <AuthProvider>
         <DataProvider>
-          <App />
+          <PremiumProvider>
+            <App />
+          </PremiumProvider>
         </DataProvider>
       </AuthProvider>
     </BrowserRouter>

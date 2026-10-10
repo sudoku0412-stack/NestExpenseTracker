@@ -7,16 +7,16 @@ import Budgets from './pages/Budgets';
 import Goals from './pages/Goals';
 import Recurring from './pages/Recurring';
 import Reports from './pages/Reports';
+import Settings from './pages/Settings';
 import Dashboard from './pages/Dashboard';
 import Incomes from './pages/Incomes';
 import Investments from './pages/Investments';
 import Login from './pages/Login';
 import Receipts from './pages/Receipts';
-import { CURRENCIES } from '@app/lib/currency';
 
 function Shell() {
   const { user, logout } = useAuth();
-  const { currency, setCurrency, ready, error } = useData();
+  const { ready, error } = useData();
   return (
     <PeriodProvider>
       <div className="shell">
@@ -32,11 +32,9 @@ function Shell() {
             <NavLink to="/goals">🐷 Savings goals</NavLink>
             <NavLink to="/balances">🤝 Balances</NavLink>
             <NavLink to="/recurring">🔁 Recurring</NavLink>
+            <NavLink to="/settings">⚙️ Settings</NavLink>
           </nav>
           <div className="foot">
-            <select value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)} aria-label="Display currency">
-              {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
-            </select>
             <span className="muted" title={user?.email ?? ''}>{user?.email}</span>
             <button className="btn sm" onClick={() => void logout()}>Sign out</button>
           </div>
@@ -57,6 +55,7 @@ function Shell() {
               <Route path="/goals" element={<Goals />} />
               <Route path="/balances" element={<Balances />} />
               <Route path="/recurring" element={<Recurring />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           )}

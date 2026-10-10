@@ -39,6 +39,7 @@ on:
       - 'docs/**'
       - 'landing/**'
       - 'web/**'
+      - 'workers/**'
 
 jobs:
   test:

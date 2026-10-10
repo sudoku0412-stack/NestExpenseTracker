@@ -1,0 +1,14 @@
+name = "nest-web-api"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+[ai]
+binding = "AI"
+
+[vars]
+FIREBASE_PROJECT_ID = "balancesheet-android"
+ALLOWED_ORIGINS = "https://nestexpensetracker.craftloop.ca,https://nestexpensetracker-web.pages.dev,http://localhost:5173"
+
+# Secret (set with `npx wrangler secret put REVENUECAT_API_KEY --name nest-web-api`):
+#   REVENUECAT_API_KEY  RevenueCat secret API key (v1, "Secret API keys"), used only to read
+#                       the signed-in user's Premium entitlement.
