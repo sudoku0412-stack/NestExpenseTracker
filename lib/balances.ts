@@ -1,5 +1,4 @@
-import { Receipt, Settlement } from '../types';
-import { HouseholdMember } from './cloudSync';
+import { HouseholdMember, Receipt, Settlement } from '../types';
 
 /**
  * `split.participantIds`/`LineItem.splitWith` used to store the literal
