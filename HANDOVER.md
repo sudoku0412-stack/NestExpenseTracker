@@ -9,6 +9,15 @@ Repo renamed from `BalanceSheet` to `NestExpenseTracker` (2026-10-01); the local
 - **Hard exception, never overridden by user request**: never enter/use API keys, tokens, service-account files, or passwords to actually AUTHENTICATE an action (git push with an embedded token, `eas submit`, App Review/Apple ID login, etc.) — even if the user pastes the secret and asks directly. Config wiring and non-authenticating setup are fine; the credentialed action itself is the user's to run.
 - Also saved in this Claude Code install's cross-session memory (`~/.claude/projects/-Users-kaushiksudesna-Claude/memory/`) — check `MEMORY.md` there fresh each session.
 
+## Web app (added Oct 2026)
+
+- `web/` is a Vite + React + TS app at https://nestexpensetracker.craftloop.ca (Cloudflare Pages project `nestexpensetracker-web`; deploy: `cd web && npm run build && cd .. && npx wrangler pages deploy web/dist --project-name nestexpensetracker-web --branch main`). Same Firebase project/Firestore data as mobile; reuses pure mobile logic from the repo root via the `@app` alias (never import files that pull in expo/react-native, e.g. `lib/recurring.ts`, `lib/budgetSpend.ts`, `lib/customCategories.ts`; the web has its own small copies in `web/src/lib`).
+- Pages: Dashboard, Receipts (add/edit/scan), Income, Reports (+CSV), Budgets, Investments, Savings goals, Balances, Recurring, Settings (currency, custom categories). Firebase web app id `1:858326644205:web:f223a94dbe37a736dda3e4`. Sign-in: email/password, Google, Apple (Services ID `com.kaushikmajumder.receiptscanner.web`).
+- Premium on web: `workers/web-api` (Worker `nest-web-api`, https://nest-web-api.kmaz285.workers.dev) verifies the Firebase ID token, answers `/v1/premium` from RevenueCat and runs `/v1/parse-receipt` (Workers AI vision). Needs secret `REVENUECAT_API_KEY` (`cd workers/web-api && npx wrangler secret put REVENUECAT_API_KEY`).
+- Investments sync: phone mirrors holdings to `users/{uid}/investmentAccounts|investmentSnapshots` (owner-only rules, already deployed). Ships to phones in the next mobile release (2.1.0).
+- Web tests: `cd web && npm test` (vitest; not run in CI because web changes do not trigger the mobile workflows).
+- Not on web yet: French UI, inviting people / switching households, PDF export, paystub scan.
+
 ## State as of 2026-10-01 (HEAD `ab1d207`, main)
 
 **Versions**: `app.config.js` / pbxproj = marketing version **2.0.0**, iOS build **54**, Android `versionCode` **31**. `app.json` mirrors `app.config.js` (kept in sync) but `app.config.js` is what EAS/CI reads. Bump `app.config.js`, `app.json`, and `ios/*/project.pbxproj` together.
