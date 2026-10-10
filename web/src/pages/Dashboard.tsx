@@ -128,7 +128,7 @@ export default function Dashboard() {
           <h2>Budgets <small>{m.budget.lines.length ? `${fmt(m.budget.totalSpent)} of ${fmt(m.budget.totalBudget)}` : ''}</small></h2>
           {m.budget.lines.length === 0 ? <div className="empty">No budgets set. Add them in the mobile app's Settings.</div> : (
             <>
-              <div className="kpi"><div className="label">{m.budget.leftOfTotal >= 0 ? 'Left of total budget' : 'Over total budget'}</div>
+              <div className="stat"><div className="label">{m.budget.leftOfTotal >= 0 ? 'Left of total budget' : 'Over total budget'}</div>
                 <div className={`value ${m.budget.leftOfTotal >= 0 ? 'ok' : 'over'}`}>{fmt(Math.abs(m.budget.leftOfTotal))}</div></div>
               {m.budget.lines.map((l) => (
                 <div className="brow" key={l.category}>
