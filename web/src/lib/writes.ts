@@ -57,3 +57,25 @@ export const deleteGoal = (householdId: string, id: string) =>
 /** Stop a recurring schedule; the rows it already created stay. */
 export const stopRecurring = (householdId: string, collection: 'receipts' | 'incomes', id: string) =>
   updateDoc(doc(db, 'households', householdId, collection, id), { recurring: null, updatedAt: new Date().toISOString() });
+
+// Investments are personal: users/{uid}/investmentAccounts and investmentSnapshots
+// (owner-only rules). Same shapes the mobile app writes.
+export async function saveInvestment(uid: string, account: { id: string; name: string; kind: string; contributedUsd: number; valueUsd: number; notes?: string; createdAt: string; updatedAt: string }): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'investmentAccounts', account.id), {
+    name: account.name.trim(),
+    kind: account.kind,
+    contributedUsd: account.contributedUsd,
+    valueUsd: account.valueUsd,
+    notes: account.notes?.trim() || null,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+  });
+}
+
+export const saveInvestmentSnapshot = (uid: string, s: { id: string; accountId: string; date: string; valueUsd: number; contributedUsd: number; createdAt: string }) =>
+  setDoc(doc(db, 'users', uid, 'investmentSnapshots', s.id), { accountId: s.accountId, date: s.date, valueUsd: s.valueUsd, contributedUsd: s.contributedUsd, createdAt: s.createdAt });
+
+export async function deleteInvestment(uid: string, accountId: string, snapshotIds: string[]): Promise<void> {
+  await Promise.all(snapshotIds.map((id) => deleteDoc(doc(db, 'users', uid, 'investmentSnapshots', id))));
+  await deleteDoc(doc(db, 'users', uid, 'investmentAccounts', accountId));
+}

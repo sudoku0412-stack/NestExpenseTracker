@@ -1,4 +1,13 @@
-import { Receipt, Settlement, Income, SavingsGoal, HouseholdMember } from '../types';
+import {
+  Receipt,
+  Settlement,
+  Income,
+  SavingsGoal,
+  HouseholdMember,
+  InvestmentAccount,
+  InvestmentKind,
+  InvestmentSnapshot,
+} from '../types';
 import {
   applyCustomCategories,
   clearPendingCustomCategoryChanges,
@@ -881,6 +890,197 @@ export function subscribeToHouseholdSavingsGoals(
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[cloudSync] subscribeToHouseholdSavingsGoals failed:', (e as Error)?.message);
+    return null;
+  }
+}
+
+// ─── investments (personal, users/{uid}/...) ─────────────────────────────
+//
+// Holdings stay personal: they are written under the signed-in user's own
+// users/{uid} document, never the shared household, and the Firestore rules
+// let only that user read them. They sync so the web app and a second device
+// show the same numbers. Same bidirectional pattern as savings goals: local
+// SQLite writes shadow-write to the cloud, and a listener applies remote
+// changes back (skipping this device's own pending writes).
+
+const INVESTMENT_KINDS: InvestmentKind[] = ['stocks', 'etf', 'crypto', 'retirement', 'savings', 'other'];
+
+export async function syncInvestmentAccountToCloud(account: InvestmentAccount, uid: string): Promise<void> {
+  const firestore = loadFirestore();
+  if (!firestore || !uid) return;
+  try {
+    await firestore()
+      .collection('users')
+      .doc(uid)
+      .collection('investmentAccounts')
+      .doc(account.id)
+      .set({
+        name: account.name,
+        kind: account.kind,
+        contributedUsd: account.contributedUsd,
+        valueUsd: account.valueUsd,
+        notes: account.notes ?? null,
+        createdAt: account.createdAt,
+        updatedAt: account.updatedAt,
+      });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[cloudSync] syncInvestmentAccountToCloud failed:', (e as Error)?.message);
+  }
+}
+
+export async function syncInvestmentSnapshotToCloud(snapshot: InvestmentSnapshot, uid: string): Promise<void> {
+  const firestore = loadFirestore();
+  if (!firestore || !uid) return;
+  try {
+    await firestore()
+      .collection('users')
+      .doc(uid)
+      .collection('investmentSnapshots')
+      .doc(snapshot.id)
+      .set({
+        accountId: snapshot.accountId,
+        date: snapshot.date,
+        valueUsd: snapshot.valueUsd,
+        contributedUsd: snapshot.contributedUsd,
+        createdAt: snapshot.createdAt,
+      });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[cloudSync] syncInvestmentSnapshotToCloud failed:', (e as Error)?.message);
+  }
+}
+
+/** Removes the account and its value history from the cloud. */
+export async function syncInvestmentAccountDeletionToCloud(accountId: string, uid: string): Promise<void> {
+  const firestore = loadFirestore();
+  if (!firestore || !uid) return;
+  try {
+    const userRef = firestore().collection('users').doc(uid);
+    const snaps = await userRef.collection('investmentSnapshots').where('accountId', '==', accountId).get();
+    await Promise.all(snaps.docs.map((d) => d.ref.delete()));
+    await userRef.collection('investmentAccounts').doc(accountId).delete();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[cloudSync] syncInvestmentAccountDeletionToCloud failed:', (e as Error)?.message);
+  }
+}
+
+/** Uploads local accounts and snapshots the cloud does not have yet, so
+ *  holdings entered before this sync existed reach the web app. */
+async function uploadMissingInvestments(uid: string): Promise<void> {
+  const firestore = loadFirestore();
+  if (!firestore) return;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, global-require
+  const { getAllInvestmentAccounts, getAllInvestmentSnapshots } = require('./database') as {
+    getAllInvestmentAccounts: () => Promise<InvestmentAccount[]>;
+    getAllInvestmentSnapshots: () => Promise<InvestmentSnapshot[]>;
+  };
+  const userRef = firestore().collection('users').doc(uid);
+  const [cloudAccounts, cloudSnaps, accounts, snapshots] = await Promise.all([
+    userRef.collection('investmentAccounts').get(),
+    userRef.collection('investmentSnapshots').get(),
+    getAllInvestmentAccounts(),
+    getAllInvestmentSnapshots(),
+  ]);
+  const haveAccounts = new Set(cloudAccounts.docs.map((d) => d.id));
+  const haveSnaps = new Set(cloudSnaps.docs.map((d) => d.id));
+  for (const a of accounts) if (!haveAccounts.has(a.id)) await syncInvestmentAccountToCloud(a, uid);
+  for (const sn of snapshots) if (!haveSnaps.has(sn.id)) await syncInvestmentSnapshotToCloud(sn, uid);
+}
+
+export function subscribeToInvestments(uid: string): (() => void) | null {
+  const firestore = loadFirestore();
+  if (!firestore || !uid) return null;
+  try {
+    const userRef = firestore().collection('users').doc(uid);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, global-require
+    const db = require('./database') as {
+      upsertInvestmentAccountFromCloud: (a: InvestmentAccount, uid: string) => Promise<void>;
+      deleteInvestmentAccountFromCloud: (id: string, uid: string) => Promise<void>;
+      upsertInvestmentSnapshotFromCloud: (s: InvestmentSnapshot, uid: string) => Promise<void>;
+      deleteInvestmentSnapshotFromCloud: (id: string, uid: string) => Promise<void>;
+    };
+    const onError = (label: string) => (err: { message?: string }) => {
+      // eslint-disable-next-line no-console
+      console.warn(`[cloudSync] ${label} listener errored:`, err?.message);
+    };
+
+    const unsubAccounts = userRef.collection('investmentAccounts').onSnapshot(
+      async (snapshot) => {
+        if (!snapshot) return;
+        for (const change of snapshot.docChanges()) {
+          try {
+            if (change.doc.metadata.hasPendingWrites) continue;
+            if (change.type === 'removed') {
+              await db.deleteInvestmentAccountFromCloud(change.doc.id, uid);
+              continue;
+            }
+            const d = change.doc.data();
+            await db.upsertInvestmentAccountFromCloud(
+              {
+                id: change.doc.id,
+                name: (d.name as string) || '',
+                kind: INVESTMENT_KINDS.includes(d.kind as InvestmentKind) ? (d.kind as InvestmentKind) : 'other',
+                contributedUsd: (d.contributedUsd as number) || 0,
+                valueUsd: (d.valueUsd as number) || 0,
+                notes: (d.notes as string | null) ?? undefined,
+                createdAt: (d.createdAt as string) || new Date().toISOString(),
+                updatedAt: (d.updatedAt as string) || new Date().toISOString(),
+              },
+              uid,
+            );
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[cloudSync] investment account apply failed:', (e as Error)?.message);
+          }
+        }
+        if (snapshot.docChanges().length > 0) notifyLocalDataChanged();
+      },
+      onError('investmentAccounts'),
+    );
+    const unsubSnapshots = userRef.collection('investmentSnapshots').onSnapshot(
+      async (snapshot) => {
+        if (!snapshot) return;
+        for (const change of snapshot.docChanges()) {
+          try {
+            if (change.doc.metadata.hasPendingWrites) continue;
+            if (change.type === 'removed') {
+              await db.deleteInvestmentSnapshotFromCloud(change.doc.id, uid);
+              continue;
+            }
+            const d = change.doc.data();
+            await db.upsertInvestmentSnapshotFromCloud(
+              {
+                id: change.doc.id,
+                accountId: (d.accountId as string) || '',
+                date: (d.date as string) || '',
+                valueUsd: (d.valueUsd as number) || 0,
+                contributedUsd: (d.contributedUsd as number) || 0,
+                createdAt: (d.createdAt as string) || new Date().toISOString(),
+              },
+              uid,
+            );
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[cloudSync] investment snapshot apply failed:', (e as Error)?.message);
+          }
+        }
+        if (snapshot.docChanges().length > 0) notifyLocalDataChanged();
+      },
+      onError('investmentSnapshots'),
+    );
+    void uploadMissingInvestments(uid).catch((e) => {
+      // eslint-disable-next-line no-console
+      console.warn('[cloudSync] uploadMissingInvestments failed:', (e as Error)?.message);
+    });
+    return () => {
+      unsubAccounts();
+      unsubSnapshots();
+    };
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[cloudSync] subscribeToInvestments failed:', (e as Error)?.message);
     return null;
   }
 }
@@ -2169,6 +2369,18 @@ export async function deleteCloudUserData(args: {
         }
       } catch {
         // ignore household errors
+      }
+    }
+
+    // Personal investment holdings live under users/{uid} (see the
+    // investments section above); deleting the user doc does not remove
+    // subcollections, so clear them first.
+    for (const sub of ['investmentAccounts', 'investmentSnapshots']) {
+      try {
+        const snap = await db.collection('users').doc(args.uid).collection(sub).get();
+        await Promise.all(snap.docs.map((d) => d.ref.delete()));
+      } catch {
+        // best effort, like the rest of this cleanup
       }
     }
 

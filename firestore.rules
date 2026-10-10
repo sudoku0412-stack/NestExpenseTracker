@@ -27,6 +27,15 @@ service cloud.firestore {
       match /memberships/{hid} {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
+
+      // Personal investment holdings (never shared with the household).
+      // Only the signed-in owner can read or write them.
+      match /investmentAccounts/{id} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+      match /investmentSnapshots/{id} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
 
     // A household doc is readable + writable by anyone whose uid is in the
