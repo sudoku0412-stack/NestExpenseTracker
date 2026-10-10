@@ -1,5 +1,6 @@
 import {
   GoogleAuthProvider,
+  OAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   sendPasswordResetEmail,
@@ -17,6 +18,7 @@ interface AuthValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   google: () => Promise<void>;
+  apple: () => Promise<void>;
   reset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -43,6 +45,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn: async (e, p) => void (await signInWithEmailAndPassword(auth, e.trim(), p)),
       signUp: async (e, p) => void (await createUserWithEmailAndPassword(auth, e.trim(), p)),
       google: async () => void (await signInWithPopup(auth, new GoogleAuthProvider())),
+      apple: async () => {
+        const provider = new OAuthProvider('apple.com');
+        provider.addScope('email');
+        provider.addScope('name');
+        await signInWithPopup(auth, provider);
+      },
       reset: (e) => sendPasswordResetEmail(auth, e.trim()),
       logout: () => signOut(auth),
     }),
@@ -67,6 +75,8 @@ export function authMessage(err: unknown): string {
   if (code.includes('invalid-email')) return 'Enter a valid email address.';
   if (code.includes('popup-closed')) return 'Sign-in was cancelled.';
   if (code.includes('too-many-requests')) return 'Too many attempts. Try again in a few minutes.';
+  if (code.includes('operation-not-allowed')) return 'This sign-in method is not turned on yet.';
+  if (code.includes('account-exists-with-different-credential')) return 'An account with this email already exists. Sign in with the method you used before.';
   if (code.includes('unauthorized-domain')) return 'This website address is not authorised for sign-in yet.';
   return 'Something went wrong. Please try again.';
 }
