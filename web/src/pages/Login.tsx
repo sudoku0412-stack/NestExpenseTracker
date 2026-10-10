@@ -13,7 +13,7 @@ const FEATURES = [
 ] as const;
 
 export default function Login() {
-  const { signIn, signUp, google, reset } = useAuth();
+  const { signIn, signUp, google, apple, reset } = useAuth();
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -70,6 +70,10 @@ export default function Login() {
             <button className="btn primary big" disabled={busy}>{mode === 'in' ? 'Sign in' : 'Sign up'}</button>
             <div className="or"><span>or</span></div>
             <button type="button" className="btn big" disabled={busy} onClick={() => void run(google)}>Continue with Google</button>
+            <button type="button" className="btn big" disabled={busy} onClick={() => void run(apple)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 1.43c0 1.14-.46 2.22-1.2 3-.8.86-2.1 1.52-3.16 1.43-.13-1.1.42-2.27 1.14-3 .8-.84 2.17-1.47 3.22-1.43zM20.5 17.1c-.55 1.27-.82 1.84-1.53 2.96-.99 1.57-2.39 3.52-4.12 3.54-1.54.02-1.94-1-4.03-.99-2.09.01-2.53 1.01-4.07.99-1.73-.02-3.05-1.78-4.04-3.35C.01 16.07-.28 10.8 1.43 8.17c1.21-1.87 3.12-2.97 4.92-2.97 1.83 0 2.98 1 4.49 1 1.47 0 2.36-1 4.48-1 1.6 0 3.3.87 4.51 2.38-3.96 2.17-3.32 7.83.67 9.52z" /></svg>
+              Continue with Apple
+            </button>
           </form>
           <div className="row-between" style={{ marginTop: 16, fontSize: 14 }}>
             <button className="link" onClick={() => { setMode(mode === 'in' ? 'up' : 'in'); setMsg(null); }}>
