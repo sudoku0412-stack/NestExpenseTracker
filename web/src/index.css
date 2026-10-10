@@ -167,3 +167,7 @@ tbody tr.click { cursor: pointer; } tbody tr.click:hover { background: var(--bra
   .picker span { min-width: 112px; }
   .drawer { padding: 18px; }
 }
+
+/* Plain in-card stat (no tile styling) */
+.stat .label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.stat .value { font-size: 28px; font-weight: 800; letter-spacing: -.03em; margin-top: 2px; white-space: nowrap; }
