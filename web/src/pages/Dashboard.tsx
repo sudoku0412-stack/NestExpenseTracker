@@ -65,10 +65,10 @@ export default function Dashboard() {
 
       {noData && <div className="card empty" style={{ marginBottom: 16 }}>Nothing recorded for {label}. Add receipts or income on the mobile app or the pages on the left.</div>}
 
-      <div className="grid cols-wide">
-        <div className="card">
+      <div className="grid cols-wide stretch">
+        <div className="card fill">
           <h2>Spending through the month <small>daily and running total</small></h2>
-          <div style={{ height: 280 }}>
+          <div className="chart">
             <ResponsiveContainer>
               <ComposedChart data={m.daily} margin={{ left: 0, right: 8, top: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
@@ -106,7 +106,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid cols-2">
+      <div className="masonry">
         <div className="card">
           <h2>Earned vs spent <small>last 6 months</small></h2>
           <div style={{ height: 260 }}>
@@ -140,9 +140,6 @@ export default function Dashboard() {
             </>
           )}
         </div>
-      </div>
-
-      <div className="grid cols-3">
         <div className="card">
           <h2>Earnings by person</h2>
           {cash.byMember.length === 0 ? <div className="empty">No income yet</div> : (
@@ -168,9 +165,6 @@ export default function Dashboard() {
             <table><tbody>{m.stores.map((s) => <tr key={s.store}><td>{s.store}<div className="muted" style={{ fontSize: 12 }}>{s.count} {s.count === 1 ? 'visit' : 'visits'}</div></td><td className="num">{fmt(s.total)}</td></tr>)}</tbody></table>
           )}
         </div>
-      </div>
-
-      <div className="grid cols-3">
         <div className="card">
           <h2>Biggest purchases</h2>
           {m.biggest.length === 0 ? <div className="empty">Nothing yet</div> : (

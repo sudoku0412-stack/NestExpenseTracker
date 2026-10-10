@@ -51,20 +51,20 @@ export default function Receipts() {
       </div>
       <div className="card">
         {rows.length === 0 ? <div className="empty">No receipts match.</div> : (
-          <table>
-            <thead><tr><th>Date</th><th>Store</th><th>Category</th><th>Added by</th><th className="num">Total</th></tr></thead>
+          <div className="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Store</th><th>Category</th><th className="hide-sm">Added by</th><th className="num">Total</th></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="click" onClick={() => setOpen(r)}>
                   <td>{dateLabel(r.date)}</td>
                   <td>{r.storeName}{r.recurring || r.isRecurringOccurrence ? ' 🔁' : ''}</td>
                   <td><span className="chip">{categoryIcon(r.category)} {r.category}</span></td>
-                  <td className="muted">{memberName(r.createdBy)}</td>
+                  <td className="muted hide-sm">{memberName(r.createdBy)}</td>
                   <td className="num">{fmt(r.totalAmount)}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
