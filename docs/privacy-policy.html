@@ -18,7 +18,7 @@
 <body>
 
 <h1>NestExpenseTracker — Privacy Policy</h1>
-<p class="effective">NestExpenseTracker (package name: com.kaushikmajumder.receiptscanner) · Developer: Kaushik Majumder · Effective: 2026-09-12</p>
+<p class="effective">NestExpenseTracker (package name: com.kaushikmajumder.receiptscanner) · Developer: Kaushik Majumder · Effective: 2026-10-09</p>
 
 <p>NestExpenseTracker ("the app") is a personal expense-tracking app that scans paper receipts, organizes them by category, and optionally syncs them across the devices of members of a shared household. This policy describes what data the app collects, where it is stored, who it is shared with, and how you can delete it.</p>
 
@@ -30,6 +30,8 @@
   <tr><td>Profile details (first/last name, age, gender, optional profile photo)</td><td>When you fill out the Profile screen</td><td>Stored locally for personalization; not shared off-device unless you upload a profile photo (then stored in Firebase Storage)</td></tr>
   <tr><td>Receipt photos</td><td>When you scan or import a receipt</td><td>Uploaded to your household's private Firebase Storage namespace so other household members can view the original receipt image</td></tr>
   <tr><td>Receipt content (store name, date, line items, totals, category)</td><td>Extracted from the photo via on-device OCR, then parsed</td><td>Stored locally in SQLite AND mirrored to your household's private Firestore database for cross-device sync</td></tr>
+  <tr><td>Income entries, category budgets, savings goals</td><td>When you add them</td><td>Stored locally AND mirrored to your household's private Firestore database so household members see the same figures</td></tr>
+  <tr><td>Investment accounts (name, kind, amount contributed, current value, value history)</td><td>When you add them</td><td>Stored locally AND under your own private account in Firestore so they sync between your phone and the website. Not shared with your household; readable only by you</td></tr>
   <tr><td>Household membership (which Firebase Auth UIDs belong to your household)</td><td>When you create or join a household</td><td>To enforce that only members can read each other's receipts</td></tr>
   <tr><td>Anthropic API key (if you provide one)</td><td>If you enter it in Settings</td><td>Stored encrypted on-device only; used directly from your device to call api.anthropic.com</td></tr>
 </table>

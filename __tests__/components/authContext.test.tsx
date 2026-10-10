@@ -74,6 +74,7 @@ jest.mock('../../lib/cloudSync', () => ({
   subscribeToHouseholdSettlements: jest.fn(() => jest.fn()),
   subscribeToHouseholdIncomes: jest.fn(() => jest.fn()),
   subscribeToHouseholdSavingsGoals: jest.fn(() => jest.fn()),
+  subscribeToInvestments: jest.fn(() => jest.fn()),
   subscribeToPendingInvite: jest.fn(() => jest.fn()),
   subscribeToPhoneInvite: jest.fn(() => jest.fn()),
   syncPushTokenToCloud: jest.fn(async () => {}),
@@ -134,6 +135,7 @@ import {
   subscribeToHouseholdSettlements,
   subscribeToHouseholdIncomes,
   subscribeToHouseholdSavingsGoals,
+  subscribeToInvestments,
   subscribeToHouseholdBudgets,
   subscribeToPendingInvite,
   setEmailIndex,
@@ -170,6 +172,7 @@ const mockSubscribeToHouseholdReceipts = subscribeToHouseholdReceipts as jest.Mo
 const mockSubscribeToHouseholdSettlements = subscribeToHouseholdSettlements as jest.Mock;
 const mockSubscribeToHouseholdIncomes = subscribeToHouseholdIncomes as jest.Mock;
 const mockSubscribeToHouseholdSavingsGoals = subscribeToHouseholdSavingsGoals as jest.Mock;
+const mockSubscribeToInvestments = subscribeToInvestments as jest.Mock;
 const mockSubscribeToHouseholdBudgets = subscribeToHouseholdBudgets as jest.Mock;
 const mockSubscribeToPendingInvite = subscribeToPendingInvite as jest.Mock;
 const mockSetEmailIndex = setEmailIndex as jest.Mock;
@@ -645,11 +648,13 @@ describe('AuthProvider profile + account actions', () => {
     const unsubSettlements = jest.fn();
     const unsubIncomes = jest.fn();
     const unsubGoals = jest.fn();
+    const unsubInvestments = jest.fn();
     const unsubBudgets = jest.fn();
     mockSubscribeToHouseholdReceipts.mockReturnValue(unsubReceipts);
     mockSubscribeToHouseholdSettlements.mockReturnValue(unsubSettlements);
     mockSubscribeToHouseholdIncomes.mockReturnValue(unsubIncomes);
     mockSubscribeToHouseholdSavingsGoals.mockReturnValue(unsubGoals);
+    mockSubscribeToInvestments.mockReturnValue(unsubInvestments);
     mockSubscribeToHouseholdBudgets.mockReturnValue(unsubBudgets);
     mockGetUserMemberships.mockResolvedValue([
       { householdId: 'hh1', name: 'Home', role: 'owner', memberCount: 1, isDefault: true },
@@ -683,6 +688,7 @@ describe('AuthProvider profile + account actions', () => {
     expect(unsubSettlements).toHaveBeenCalled();
     expect(unsubIncomes).toHaveBeenCalled();
     expect(unsubGoals).toHaveBeenCalled();
+    expect(unsubInvestments).toHaveBeenCalled();
     expect(unsubBudgets).toHaveBeenCalled();
   });
 
@@ -710,11 +716,13 @@ describe('AuthProvider profile + account actions', () => {
     const unsubSettlements = jest.fn();
     const unsubIncomes = jest.fn();
     const unsubGoals = jest.fn();
+    const unsubInvestments = jest.fn();
     const unsubBudgets = jest.fn();
     mockSubscribeToHouseholdReceipts.mockReturnValue(unsubReceipts);
     mockSubscribeToHouseholdSettlements.mockReturnValue(unsubSettlements);
     mockSubscribeToHouseholdIncomes.mockReturnValue(unsubIncomes);
     mockSubscribeToHouseholdSavingsGoals.mockReturnValue(unsubGoals);
+    mockSubscribeToInvestments.mockReturnValue(unsubInvestments);
     mockSubscribeToHouseholdBudgets.mockReturnValue(unsubBudgets);
     mockGetUserMemberships.mockResolvedValue([
       { householdId: 'hh1', name: 'Home', role: 'owner', memberCount: 1, isDefault: true },
@@ -748,6 +756,7 @@ describe('AuthProvider profile + account actions', () => {
     expect(unsubSettlements).toHaveBeenCalled();
     expect(unsubIncomes).toHaveBeenCalled();
     expect(unsubGoals).toHaveBeenCalled();
+    expect(unsubInvestments).toHaveBeenCalled();
     expect(unsubBudgets).toHaveBeenCalled();
   });
 

@@ -1,6 +1,7 @@
 /**
- * Investment holdings are personal + local-only: scoped by user_id, removed
- * with their mockSnapshots, and wiped with the account.
+ * Investment holdings are personal: scoped by user_id in SQLite, never tied to a
+ * household, removed with their snapshots, wiped with the account, and synced
+ * to the user's own users/{uid} space (not the household).
  */
 
 type Row = Record<string, unknown>;
@@ -65,7 +66,14 @@ jest.mock('expo-sqlite', () => ({
   }),
 }));
 
+const mockSyncAccount = jest.fn();
+const mockSyncAccountDelete = jest.fn();
+const mockSyncSnapshot = jest.fn();
+
 jest.mock('../../lib/cloudSync', () => ({
+  syncInvestmentAccountToCloud: (...a: unknown[]) => mockSyncAccount(...a),
+  syncInvestmentAccountDeletionToCloud: (...a: unknown[]) => mockSyncAccountDelete(...a),
+  syncInvestmentSnapshotToCloud: (...a: unknown[]) => mockSyncSnapshot(...a),
   syncReceiptDeletionToCloud: jest.fn(),
   syncReceiptToCloud: jest.fn(),
   syncSettlementToCloud: jest.fn(),
@@ -80,11 +88,15 @@ import {
   addInvestmentSnapshot,
   deleteAllReceipts,
   deleteInvestmentAccount,
+  deleteInvestmentAccountFromCloud,
   getAllInvestmentAccounts,
+  getAllInvestmentSnapshots,
   getInvestmentAccountById,
   getInvestmentSnapshots,
   saveInvestmentAccount,
   setCurrentUserId,
+  upsertInvestmentAccountFromCloud,
+  upsertInvestmentSnapshotFromCloud,
 } from '../../lib/database';
 import type { InvestmentAccount } from '../../types';
 
@@ -103,6 +115,9 @@ beforeEach(async () => {
   mockAccounts.clear();
   mockSnapshots.clear();
   mockRuns.length = 0;
+  mockSyncAccount.mockClear();
+  mockSyncAccountDelete.mockClear();
+  mockSyncSnapshot.mockClear();
   await setCurrentUserId('u1');
 });
 
@@ -138,7 +153,7 @@ describe('investment accounts', () => {
     })).rejects.toThrow(/No authenticated user/);
   });
 
-  it('never syncs to the cloud or household (user-scoped SQL only)', async () => {
+  it('keeps SQL user-scoped, with no household column', async () => {
     await saveInvestmentAccount(account());
     const insert = mockRuns.find((r) => /INSERT OR REPLACE INTO investment_accounts/i.test(r.sql))!;
     expect(insert.sql).not.toMatch(/household_id/i);
@@ -194,5 +209,39 @@ describe('account deletion', () => {
     await deleteAllReceipts();
     expect(mockRuns.some((r) => /DELETE FROM investment_snapshots WHERE user_id/i.test(r.sql) && r.params[0] === 'u1')).toBe(true);
     expect(mockRuns.some((r) => /DELETE FROM investment_accounts WHERE user_id/i.test(r.sql) && r.params[0] === 'u1')).toBe(true);
+  });
+});
+
+describe('investments cloud sync', () => {
+  const snap = (o = {}) => ({ id: 's1', accountId: 'a1', date: '2026-02-01', valueUsd: 1300, contributedUsd: 1000, createdAt: '2026-02-01T00:00:00.000Z', ...o });
+
+  it('shadow-writes saves, snapshots and deletions to the signed-in user\'s cloud space', async () => {
+    await saveInvestmentAccount(account());
+    expect(mockSyncAccount).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1' }), 'u1');
+    await addInvestmentSnapshot(snap());
+    expect(mockSyncSnapshot).toHaveBeenCalledWith(expect.objectContaining({ id: 's1' }), 'u1');
+    await deleteInvestmentAccount('a1');
+    expect(mockSyncAccountDelete).toHaveBeenCalledWith('a1', 'u1');
+  });
+
+  it('applies a newer cloud account but ignores a stale one, without writing back', async () => {
+    await saveInvestmentAccount(account({ updatedAt: '2026-03-01T00:00:00.000Z', valueUsd: 1500 }));
+    mockSyncAccount.mockClear();
+    await upsertInvestmentAccountFromCloud(account({ updatedAt: '2026-02-01T00:00:00.000Z', valueUsd: 1 }), 'u1');
+    expect((await getInvestmentAccountById('a1'))?.valueUsd).toBe(1500);
+    await upsertInvestmentAccountFromCloud(account({ updatedAt: '2026-04-01T00:00:00.000Z', valueUsd: 1800 }), 'u1');
+    expect((await getInvestmentAccountById('a1'))?.valueUsd).toBe(1800);
+    expect(mockSyncAccount).not.toHaveBeenCalled();
+  });
+
+  it('applies cloud snapshots and a cloud delete removes the account and its history', async () => {
+    await upsertInvestmentAccountFromCloud(account(), 'u1');
+    await upsertInvestmentSnapshotFromCloud(snap(), 'u1');
+    expect((await getInvestmentSnapshots('a1')).map((s) => s.id)).toEqual(['s1']);
+    expect(await getAllInvestmentSnapshots()).toEqual([]); // mock getAllAsync has no all-snapshots query
+    await deleteInvestmentAccountFromCloud('a1', 'u1');
+    expect(await getInvestmentAccountById('a1')).toBeNull();
+    expect(await getInvestmentSnapshots('a1')).toEqual([]);
+    expect(mockSyncAccountDelete).not.toHaveBeenCalled();
   });
 });

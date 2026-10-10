@@ -19,6 +19,9 @@ import {
   syncIncomeDeletionToCloud,
   syncSavingsGoalToCloud,
   syncSavingsGoalDeletionToCloud,
+  syncInvestmentAccountToCloud,
+  syncInvestmentAccountDeletionToCloud,
+  syncInvestmentSnapshotToCloud,
   uploadReceiptPhoto,
 } from './cloudSync';
 
@@ -1761,7 +1764,7 @@ export async function deleteSavingsGoalFromCloud(
   ]);
 }
 
-// ─── investments (Premium, personal, local-only) ───────────────────────────
+// ─── investments (Premium, personal; synced to users/{uid}, never the household) ──
 
 type InvestmentAccountRow = {
   id: string;
@@ -1805,6 +1808,7 @@ export async function saveInvestmentAccount(account: InvestmentAccount): Promise
       uid,
     ],
   );
+  void syncInvestmentAccountToCloud(account, uid);
 }
 
 export async function getAllInvestmentAccounts(): Promise<InvestmentAccount[]> {
@@ -1832,6 +1836,7 @@ export async function deleteInvestmentAccount(id: string): Promise<void> {
     await db.runAsync(`DELETE FROM investment_snapshots WHERE account_id=? AND user_id=?`, [id, uid]);
     await db.runAsync(`DELETE FROM investment_accounts WHERE id=? AND user_id=?`, [id, uid]);
   });
+  void syncInvestmentAccountDeletionToCloud(id, uid);
 }
 
 export async function addInvestmentSnapshot(snapshot: InvestmentSnapshot): Promise<void> {
@@ -1850,6 +1855,64 @@ export async function addInvestmentSnapshot(snapshot: InvestmentSnapshot): Promi
       uid,
     ],
   );
+  void syncInvestmentSnapshotToCloud(snapshot, uid);
+}
+
+/** Every snapshot for the signed-in user, for the one-time cloud upload. */
+export async function getAllInvestmentSnapshots(): Promise<InvestmentSnapshot[]> {
+  const uid = requireUserId('getAllInvestmentSnapshots');
+  const rows = await db.getAllAsync<{
+    id: string;
+    account_id: string;
+    date: string;
+    value_usd: number;
+    contributed_usd: number;
+    created_at: string;
+  }>(`SELECT * FROM investment_snapshots WHERE user_id=?`, [uid]);
+  return rows.map((r) => ({
+    id: r.id,
+    accountId: r.account_id,
+    date: r.date,
+    valueUsd: r.value_usd,
+    contributedUsd: r.contributed_usd,
+    createdAt: r.created_at,
+  }));
+}
+
+// Cloud -> local appliers. They never write back to the cloud.
+
+export async function upsertInvestmentAccountFromCloud(cloud: InvestmentAccount, uid: string): Promise<void> {
+  const existing = await db.getFirstAsync<{ updated_at: string }>(
+    `SELECT updated_at FROM investment_accounts WHERE id=? AND user_id=?`,
+    [cloud.id, uid],
+  );
+  if (existing && existing.updated_at >= (cloud.updatedAt ?? '')) return;
+  await db.runAsync(
+    `INSERT OR REPLACE INTO investment_accounts (
+      id, name, kind, contributed_usd, value_usd, notes, created_at, updated_at, user_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [cloud.id, cloud.name, cloud.kind, cloud.contributedUsd, cloud.valueUsd, cloud.notes ?? null, cloud.createdAt, cloud.updatedAt, uid],
+  );
+}
+
+export async function deleteInvestmentAccountFromCloud(id: string, uid: string): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(`DELETE FROM investment_snapshots WHERE account_id=? AND user_id=?`, [id, uid]);
+    await db.runAsync(`DELETE FROM investment_accounts WHERE id=? AND user_id=?`, [id, uid]);
+  });
+}
+
+export async function upsertInvestmentSnapshotFromCloud(cloud: InvestmentSnapshot, uid: string): Promise<void> {
+  await db.runAsync(
+    `INSERT OR REPLACE INTO investment_snapshots (
+      id, account_id, date, value_usd, contributed_usd, created_at, user_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [cloud.id, cloud.accountId, cloud.date, cloud.valueUsd, cloud.contributedUsd, cloud.createdAt, uid],
+  );
+}
+
+export async function deleteInvestmentSnapshotFromCloud(id: string, uid: string): Promise<void> {
+  await db.runAsync(`DELETE FROM investment_snapshots WHERE id=? AND user_id=?`, [id, uid]);
 }
 
 /** Newest first. */
