@@ -9,6 +9,7 @@ import { Modal, NO_REPEAT, RecurringFields, type RecurringState } from '../compo
 import { useData } from '../data';
 import { db } from '../firebase';
 import { buildSchedule } from '../lib/schedule';
+import { remapSelfIds, remapSelfValues } from '../lib/splitSelf';
 
 type Method = 'equal' | 'percent' | 'amount' | 'shares';
 interface Item { key: string; name: string; amount: string; category: string }
@@ -36,8 +37,10 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
   const [paidBy, setPaidBy] = useState(receipt?.paidBy ?? user?.uid ?? '');
   const [splitOn, setSplitOn] = useState(Boolean(receipt?.split?.enabled));
   const [method, setMethod] = useState<Method>(receipt?.split?.method ?? 'equal');
-  const [people, setPeople] = useState<string[]>(receipt?.split?.participantIds?.map((p) => (p === 'self' ? user?.uid ?? p : p)) ?? members.map((m) => m.uid));
-  const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(receipt?.split?.values ?? {}).map(([k, v]) => [k === 'self' ? user?.uid ?? k : k, String(v)])));
+  const [people, setPeople] = useState<string[]>(receipt?.split?.participantIds ? remapSelfIds(receipt.split.participantIds, user?.uid) : members.map((m) => m.uid));
+  const [vals, setVals] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(remapSelfValues(receipt?.split?.values ?? {}, user?.uid)).map(([k, v]) => [k, String(v)])),
+  );
   const [repeat, setRepeat] = useState<RecurringState>(receipt?.recurring ? { enabled: true, frequency: receipt.recurring.frequency, months: '' } : NO_REPEAT);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);

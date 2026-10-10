@@ -3,14 +3,14 @@ import {
   doc,
   getDoc,
   onSnapshot,
-  type DocumentData,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { CurrencyCode } from '@app/lib/currency';
-import type { Income, InvestmentAccount, InvestmentKind, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
+import type { Income, InvestmentAccount, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
 import { useAuth } from './auth';
 import { db } from './firebase';
+import { num, str, toIncome, toInvestmentAccount, toInvestmentSnapshot, toReceipt } from './lib/map';
 
 export interface Member {
   uid: string;
@@ -51,60 +51,6 @@ function readCurrency(): CurrencyCode {
   } catch {
     return 'USD';
   }
-}
-
-const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
-const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-
-function toReceipt(id: string, d: DocumentData, householdId: string): Receipt {
-  const items = Array.isArray(d.lineItems) ? d.lineItems : [];
-  return {
-    id,
-    storeName: str(d.storeName, 'Unknown'),
-    date: str(d.date),
-    totalAmount: num(d.totalAmount),
-    subtotalAmount: d.subtotalAmount ?? undefined,
-    taxAmount: d.taxAmount ?? undefined,
-    category: str(d.category, 'Other'),
-    categoryTags: Array.isArray(d.categoryTags) ? d.categoryTags : undefined,
-    notes: d.notes ?? undefined,
-    photoUrl: d.photoUrl ?? undefined,
-    originalCurrency: d.originalCurrency ?? undefined,
-    paidBy: d.paidBy ?? undefined,
-    createdBy: d.createdBy ?? undefined,
-    split: d.split ?? undefined,
-    recurring: d.recurring ?? undefined,
-    isRecurringOccurrence: Boolean(d.isRecurringOccurrence),
-    lineItems: items.map((it: DocumentData, i: number) => ({
-      id: str(it.id, `${id}-${i}`),
-      name: str(it.name),
-      amount: num(it.amount),
-      category: it.category ?? undefined,
-      splitWith: it.splitWith ?? undefined,
-    })),
-    householdId,
-    createdAt: str(d.createdAt),
-    updatedAt: str(d.updatedAt),
-  };
-}
-
-function toIncome(id: string, d: DocumentData, householdId: string): Income {
-  return {
-    id,
-    sourceName: str(d.sourceName, 'Income'),
-    date: str(d.date),
-    amountUsd: num(d.amountUsd),
-    category: (d.category as Income['category']) ?? 'Other',
-    earnedBy: str(d.earnedBy),
-    notes: d.notes ?? undefined,
-    originalCurrency: d.originalCurrency ?? undefined,
-    recurring: d.recurring ?? undefined,
-    isRecurringOccurrence: Boolean(d.isRecurringOccurrence),
-    createdBy: d.createdBy ?? undefined,
-    householdId,
-    createdAt: str(d.createdAt),
-    updatedAt: str(d.updatedAt),
-  };
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
@@ -149,18 +95,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setInvestmentSnapshots([]);
     if (!user) return;
     const base = doc(db, 'users', user.uid);
-    const kinds: InvestmentKind[] = ['stocks', 'etf', 'crypto', 'retirement', 'savings', 'other'];
     const a = onSnapshot(collection(base, 'investmentAccounts'), (snap) =>
-      setInvestments(snap.docs.map((x) => {
-        const d = x.data();
-        return { id: x.id, name: str(d.name), kind: kinds.includes(d.kind) ? d.kind : 'other', contributedUsd: num(d.contributedUsd), valueUsd: num(d.valueUsd), notes: d.notes ?? undefined, createdAt: str(d.createdAt), updatedAt: str(d.updatedAt) };
-      })),
+      setInvestments(snap.docs.map((x) => toInvestmentAccount(x.id, x.data()))),
       () => undefined);
     const s = onSnapshot(collection(base, 'investmentSnapshots'), (snap) =>
-      setInvestmentSnapshots(snap.docs.map((x) => {
-        const d = x.data();
-        return { id: x.id, accountId: str(d.accountId), date: str(d.date), valueUsd: num(d.valueUsd), contributedUsd: num(d.contributedUsd), createdAt: str(d.createdAt) };
-      })),
+      setInvestmentSnapshots(snap.docs.map((x) => toInvestmentSnapshot(x.id, x.data()))),
       () => undefined);
     return () => { a(); s(); };
   }, [user]);

@@ -8,6 +8,8 @@
  * here against Google's public keys, so the uid cannot be spoofed.
  */
 
+import { extractJsonObject, premiumFromSubscriber, receiptImageError } from './logic';
+
 interface Env {
   AI: { run: (model: string, input: unknown) => Promise<{ response?: string }> };
   FIREBASE_PROJECT_ID: string;
@@ -15,10 +17,8 @@ interface Env {
   REVENUECAT_API_KEY?: string;
 }
 
-const PREMIUM_ENTITLEMENT_ID = 'premium';
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
-const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
 type Jwk = JsonWebKey & { kid: string };
 let jwksCache: { keys: Jwk[]; at: number } | null = null;
@@ -67,9 +67,7 @@ async function isPremium(uid: string, env: Env): Promise<boolean | null> {
   if (res.status === 404) return false;
   if (!res.ok) return null;
   const body = (await res.json()) as { subscriber?: { entitlements?: Record<string, { expires_date: string | null }> } };
-  const ent = body.subscriber?.entitlements?.[PREMIUM_ENTITLEMENT_ID];
-  if (!ent) return false;
-  return ent.expires_date === null || new Date(ent.expires_date).getTime() > Date.now();
+  return premiumFromSubscriber(body);
 }
 
 const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSON object, no prose:
@@ -119,15 +117,15 @@ export default {
         return json({ error: 'invalid body' }, 400, headers);
       }
       const image = body.image ?? '';
-      if (!/^data:image\/(png|jpe?g|webp);base64,/.test(image)) return json({ error: 'send a PNG, JPEG or WebP data URL' }, 400, headers);
-      if (image.length * 0.75 > MAX_IMAGE_BYTES) return json({ error: 'image too large' }, 413, headers);
+      const imageErr = receiptImageError(image);
+      if (imageErr === 'format') return json({ error: 'send a PNG, JPEG or WebP data URL' }, 400, headers);
+      if (imageErr === 'size') return json({ error: 'image too large' }, 413, headers);
       try {
         const out = await env.AI.run(VISION_MODEL, { messages: [{ role: 'user', content: [{ type: 'text', text: PARSE_PROMPT }, { type: 'image_url', image_url: { url: image } }] }], max_tokens: 1500 });
         const text = out.response ?? '';
-        const start = text.indexOf('{');
-        const end = text.lastIndexOf('}');
-        if (start < 0 || end < start) return json({ error: 'could not read the receipt' }, 422, headers);
-        return json({ receipt: JSON.parse(text.slice(start, end + 1)) }, 200, headers);
+        const raw = extractJsonObject(text);
+        if (!raw) return json({ error: 'could not read the receipt' }, 422, headers);
+        return json({ receipt: JSON.parse(raw) }, 200, headers);
       } catch {
         return json({ error: 'could not read the receipt' }, 422, headers);
       }
