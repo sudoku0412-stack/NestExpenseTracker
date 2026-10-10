@@ -171,3 +171,8 @@ tbody tr.click { cursor: pointer; } tbody tr.click:hover { background: var(--bra
 /* Plain in-card stat (no tile styling) */
 .stat .label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
 .stat .value { font-size: 28px; font-weight: 800; letter-spacing: -.03em; margin-top: 2px; white-space: nowrap; }
+
+.inline-edit { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.inline-edit input { width: 120px; height: 32px; }
+.switch-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; cursor: pointer; font-weight: 600; }
+.switch-row input { width: 20px; height: 20px; accent-color: var(--brand); flex: none; }

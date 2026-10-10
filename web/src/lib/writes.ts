@@ -1,4 +1,4 @@
-import { deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { convertEntryToUsd, type CurrencyCode } from '@app/lib/currency';
 import type { IncomeCategory } from '@app/types';
 import { db } from '../firebase';
@@ -83,3 +83,17 @@ export async function addIncome(args: {
 
 export const deleteIncome = (householdId: string, id: string) =>
   deleteDoc(doc(db, 'households', householdId, 'incomes', id));
+
+// Budgets live on the household doc as budgets.byCategory (USD) and
+// budgets.alertsEnabled, the same place the mobile app mirrors them. The
+// nested merge updates one category without touching the others. The app
+// cannot delete a synced category, so removing a budget writes 0.
+export const setCategoryBudget = (householdId: string, category: string, amountUsd: number) =>
+  setDoc(
+    doc(db, 'households', householdId),
+    { budgets: { byCategory: { [category]: Math.max(0, Math.round(amountUsd * 100) / 100) } }, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
+
+export const setBudgetAlertsEnabled = (householdId: string, enabled: boolean) =>
+  setDoc(doc(db, 'households', householdId), { budgets: { alertsEnabled: enabled }, updatedAt: serverTimestamp() }, { merge: true });

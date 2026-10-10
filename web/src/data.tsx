@@ -30,6 +30,7 @@ interface DataValue {
   members: Member[];
   memberName: (uid: string | undefined | null) => string;
   budgets: Record<string, number>;
+  budgetAlerts: boolean;
   customCategories: CustomCategory[];
   receipts: Receipt[];
   incomes: Income[];
@@ -108,6 +109,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [budgets, setBudgets] = useState<Record<string, number>>({});
+  const [budgetAlerts, setBudgetAlerts] = useState(true);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [incomes, setIncomes] = useState<Income[]>([]);
@@ -152,6 +154,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         async (snap) => {
           const d = snap.data() ?? {};
           setBudgets((d.budgets?.byCategory as Record<string, number>) ?? {});
+          setBudgetAlerts(d.budgets?.alertsEnabled !== false);
           setCustomCategories(Array.isArray(d.customCategories) ? d.customCategories : []);
           const uids: string[] = Array.isArray(d.memberUids) ? d.memberUids : [];
           const people = await Promise.all(
@@ -224,6 +227,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       members,
       memberName: (uid) => (uid ? byUid.get(uid) ?? 'Member' : 'Member'),
       budgets,
+      budgetAlerts,
       customCategories,
       receipts,
       incomes,
@@ -238,7 +242,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
       },
     };
-  }, [householdId, loaded, error, members, budgets, customCategories, receipts, incomes, settlements, currency]);
+  }, [householdId, loaded, error, members, budgets, budgetAlerts, customCategories, receipts, incomes, settlements, currency]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
