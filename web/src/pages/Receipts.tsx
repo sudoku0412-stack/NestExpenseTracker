@@ -1,24 +1,22 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { ALL_CATEGORIES, categoryIcon } from '@app/constants/categories';
-import { formatLocalDate } from '@app/lib/calendarDate';
 import type { Receipt } from '@app/types';
-import { useAuth } from '../auth';
 import { useData } from '../data';
 import { dateLabel, inMonth } from '../lib/stats';
-import { addReceipt, deleteReceipt } from '../lib/writes';
+import ReceiptForm from '../forms/ReceiptForm';
+import { deleteReceipt } from '../lib/writes';
 import { useMoney } from '../money';
 import { MonthPicker, usePeriod } from '../period';
 
 export default function Receipts() {
-  const { receipts, householdId, customCategories, currency, memberName } = useData();
-  const { user } = useAuth();
+  const { receipts, householdId, customCategories, memberName } = useData();
   const { year, month, label } = usePeriod();
   const fmt = useMoney();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
   const [scope, setScope] = useState<'month' | 'all'>('month');
   const [open, setOpen] = useState<Receipt | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState<{ receipt?: Receipt } | null>(null);
 
   const categories = useMemo(() => [...ALL_CATEGORIES as string[], ...customCategories.map((c) => c.name)], [customCategories]);
   const rows = useMemo(() => {
@@ -36,7 +34,7 @@ export default function Receipts() {
         <div><h1>Receipts</h1><p className="sub">{rows.length} {rows.length === 1 ? 'receipt' : 'receipts'} · {fmt(total)}{scope === 'month' ? ` · ${label}` : ''}</p></div>
         <div className="row-between">
           {scope === 'month' && <MonthPicker />}
-          <button className="btn primary" onClick={() => setAdding(true)}>+ Add receipt</button>
+          <button className="btn primary" onClick={() => setForm({})}>+ Add receipt</button>
         </div>
       </div>
       <div className="toolbar">
@@ -71,7 +69,7 @@ export default function Receipts() {
       {open && (
         <div className="drawer-bg" onClick={() => setOpen(null)}>
           <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Receipt details">
-            <div className="row-between"><h1>{open.storeName}</h1><button className="btn sm" onClick={() => setOpen(null)}>Close</button></div>
+            <div className="row-between"><h1>{open.storeName}</h1><span style={{ display: 'flex', gap: 8 }}><button className="btn sm" onClick={() => { setForm({ receipt: open }); setOpen(null); }}>Edit</button><button className="btn sm" onClick={() => setOpen(null)}>Close</button></span></div>
             <p className="sub">{dateLabel(open.date)} · {open.category} · added by {memberName(open.createdBy)}</p>
             <div className="card kpi"><div className="label">Total</div><div className="value">{fmt(open.totalAmount)}</div>
               {open.taxAmount ? <div className="note">Includes {fmt(open.taxAmount)} tax</div> : null}</div>
@@ -90,56 +88,8 @@ export default function Receipts() {
         </div>
       )}
 
-      {adding && (
-        <AddReceipt categories={categories} onClose={() => setAdding(false)} onSave={async (v) => {
-          if (!householdId || !user) return;
-          await addReceipt({ householdId, uid: user.uid, currency, ...v });
-          setAdding(false);
-        }} />
-      )}
+      {form && <ReceiptForm receipt={form.receipt} onClose={() => setForm(null)} />}
     </>
   );
 }
 
-function AddReceipt({ categories, onClose, onSave }: {
-  categories: string[];
-  onClose: () => void;
-  onSave: (v: { storeName: string; date: string; amount: number; category: string; notes: string }) => Promise<void>;
-}) {
-  const { currency } = useData();
-  const [store, setStore] = useState('');
-  const [date, setDate] = useState(formatLocalDate(new Date()));
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('Groceries');
-  const [notes, setNotes] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const n = Number(amount);
-    if (!store.trim()) return setErr('Enter the store name.');
-    if (!(n > 0)) return setErr('Enter an amount greater than zero.');
-    setBusy(true);
-    try {
-      await onSave({ storeName: store, date, amount: n, category, notes });
-    } catch {
-      setErr('Could not save. Check your connection and try again.');
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="drawer-bg" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit} aria-label="Add receipt">
-        <h1>Add receipt</h1>
-        <label>Store<input type="text" value={store} onChange={(e) => setStore(e.target.value)} autoFocus /></label>
-        <label>Date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></label>
-        <label>Total ({currency})<input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
-        <label>Category<select value={category} onChange={(e) => setCategory(e.target.value)}>{categories.map((c) => <option key={c}>{c}</option>)}</select></label>
-        <label>Notes (optional)<input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
-        {err && <div className="err" role="alert">{err}</div>}
-        <div className="row-between"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy}>Save</button></div>
-      </form>
-    </div>
-  );
-}

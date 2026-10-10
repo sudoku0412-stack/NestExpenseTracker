@@ -72,6 +72,18 @@ describe('computeReceiptShare', () => {
     expect(computeReceiptShare(r, SELF, SELF)).toBeCloseTo(60, 5);
   });
 
+  it('percent, amount and shares splits read values keyed by real uid (what the app saves today)', () => {
+    const base = { enabled: true as const, participantIds: [SELF, BOB] };
+    const pct = baseReceipt({ totalAmount: 200, split: { ...base, method: 'percent', values: { [SELF]: 30, [BOB]: 70 } } });
+    expect(computeReceiptShare(pct, SELF, SELF)).toBeCloseTo(60, 5);
+    expect(computeReceiptShare(pct, BOB, SELF)).toBeCloseTo(140, 5);
+    const amt = baseReceipt({ totalAmount: 200, split: { ...base, method: 'amount', values: { [SELF]: 50, [BOB]: 150 } } });
+    expect(computeReceiptShare(amt, SELF, SELF)).toBeCloseTo(50, 5);
+    const sh = baseReceipt({ totalAmount: 300, split: { ...base, method: 'shares', values: { [SELF]: 1, [BOB]: 2 } } });
+    expect(computeReceiptShare(sh, SELF, SELF)).toBeCloseTo(100, 5);
+    expect(computeReceiptShare(sh, BOB, SELF)).toBeCloseTo(200, 5);
+  });
+
   it('percent split defaults to 0 when no value set for a participant', () => {
     const r = baseReceipt({
       totalAmount: 200,

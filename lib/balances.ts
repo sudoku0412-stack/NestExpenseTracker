@@ -50,23 +50,23 @@ export function computeReceiptShare(
     return total;
   }
 
-  const key = targetUid === selfUid ? 'self' : targetUid;
+  // split.values is keyed by real uid on current saves, and by the literal
+  // 'self' placeholder on older ones; accept either for the signed-in user.
+  const valueFor = (uid: string): number =>
+    split.values?.[uid] ?? (uid === selfUid ? split.values?.self : undefined) ?? 0;
   switch (split.method) {
     case 'equal':
       return receipt.totalAmount / resolvedParticipants.length;
     case 'percent':
-      return receipt.totalAmount * ((split.values?.[key] ?? 0) / 100);
+      return receipt.totalAmount * (valueFor(targetUid) / 100);
     case 'amount':
-      return split.values?.[key] ?? 0;
+      return valueFor(targetUid);
     case 'shares': {
       // Splitwise-style weighted shares — e.g. participant A holds 2
       // shares and B holds 1, so the total splits 2:1 between them.
-      const totalShares = split.participantIds.reduce(
-        (sum, pid) => sum + (split.values?.[pid] ?? 0),
-        0,
-      );
+      const totalShares = resolvedParticipants.reduce((sum, pid) => sum + valueFor(pid), 0);
       if (totalShares <= 0) return 0;
-      return receipt.totalAmount * ((split.values?.[key] ?? 0) / totalShares);
+      return receipt.totalAmount * (valueFor(targetUid) / totalShares);
     }
     default:
       return 0;
