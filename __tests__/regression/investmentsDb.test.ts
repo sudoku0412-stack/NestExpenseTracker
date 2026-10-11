@@ -18,9 +18,12 @@ jest.mock('expo-sqlite', () => ({
         return [...mockAccounts.values()].filter((r) => r.user_id === params[0]);
       }
       if (/FROM investment_snapshots/i.test(sql)) {
-        return [...mockSnapshots.values()]
-          .filter((r) => r.account_id === params[0] && r.user_id === params[1])
-          .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        if (/account_id/i.test(sql)) {
+          return [...mockSnapshots.values()]
+            .filter((r) => r.account_id === params[0] && r.user_id === params[1])
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        }
+        return [...mockSnapshots.values()].filter((r) => r.user_id === params[0]);
       }
       return [];
     }),
@@ -57,6 +60,9 @@ jest.mock('expo-sqlite', () => ({
         });
       } else if (/DELETE FROM investment_snapshots WHERE account_id/i.test(sql)) {
         for (const [k, r] of mockSnapshots) if (r.account_id === params[0] && r.user_id === params[1]) mockSnapshots.delete(k);
+      } else if (/DELETE FROM investment_snapshots WHERE id/i.test(sql)) {
+        const r = mockSnapshots.get(params[0] as string);
+        if (r && r.user_id === params[1]) mockSnapshots.delete(params[0] as string);
       } else if (/DELETE FROM investment_accounts WHERE id/i.test(sql)) {
         const r = mockAccounts.get(params[0] as string);
         if (r && r.user_id === params[1]) mockAccounts.delete(params[0] as string);
@@ -89,6 +95,7 @@ import {
   deleteAllReceipts,
   deleteInvestmentAccount,
   deleteInvestmentAccountFromCloud,
+  deleteInvestmentSnapshotFromCloud,
   getAllInvestmentAccounts,
   getAllInvestmentSnapshots,
   getInvestmentAccountById,
@@ -238,10 +245,30 @@ describe('investments cloud sync', () => {
     await upsertInvestmentAccountFromCloud(account(), 'u1');
     await upsertInvestmentSnapshotFromCloud(snap(), 'u1');
     expect((await getInvestmentSnapshots('a1')).map((s) => s.id)).toEqual(['s1']);
-    expect(await getAllInvestmentSnapshots()).toEqual([]); // mock getAllAsync has no all-snapshots query
+    expect((await getAllInvestmentSnapshots()).map((s) => s.id)).toEqual(['s1']);
     await deleteInvestmentAccountFromCloud('a1', 'u1');
     expect(await getInvestmentAccountById('a1')).toBeNull();
     expect(await getInvestmentSnapshots('a1')).toEqual([]);
     expect(mockSyncAccountDelete).not.toHaveBeenCalled();
+  });
+
+  it('getAllInvestmentSnapshots is user-scoped (first-run cloud upload)', async () => {
+    await addInvestmentSnapshot(snap());
+    await addInvestmentSnapshot({ ...snap(), id: 's2', accountId: 'a2' });
+    expect((await getAllInvestmentSnapshots()).map((s) => s.id).sort()).toEqual(['s1', 's2']);
+    await setCurrentUserId('u2');
+    expect(await getAllInvestmentSnapshots()).toEqual([]);
+    await setCurrentUserId(null);
+    await expect(getAllInvestmentSnapshots()).rejects.toThrow(/No authenticated user/);
+  });
+
+  it('deleteInvestmentSnapshotFromCloud is uid-scoped and never writes back', async () => {
+    await upsertInvestmentSnapshotFromCloud(snap(), 'u1');
+    await upsertInvestmentSnapshotFromCloud({ ...snap(), id: 's-other' }, 'u2');
+    await deleteInvestmentSnapshotFromCloud('s1', 'u2');
+    expect((await getAllInvestmentSnapshots()).map((s) => s.id)).toEqual(['s1']);
+    await deleteInvestmentSnapshotFromCloud('s1', 'u1');
+    expect(await getAllInvestmentSnapshots()).toEqual([]);
+    expect(mockSyncSnapshot).not.toHaveBeenCalled();
   });
 });

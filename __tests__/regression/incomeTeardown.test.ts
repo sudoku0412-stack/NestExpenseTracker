@@ -170,4 +170,46 @@ describe('deleteCloudUserData', () => {
     expect(mockStore.has('households/h1/savingsGoals/g1')).toBe(true);
     expect(mockStore.has('households/h1')).toBe(true);
   });
+
+  it('always wipes this user\'s investment holdings, even when the household is shared', async () => {
+    // Holdings live under users/{uid}, not the household. Deleting the
+    // user doc does not cascade subcollections, so account deletion
+    // must clear them first or they stay readable only by a gone uid.
+    seedHousehold('h1', 'owner', ['owner', 'u1']);
+    seedDoc('users/u1/investmentAccounts/a1', { name: 'TFSA' });
+    seedDoc('users/u1/investmentSnapshots/s1', { accountId: 'a1', valueUsd: 1200 });
+    seedDoc('users/u2/investmentAccounts/a2', { name: 'RRSP' });
+    seedDoc('users/u2/investmentSnapshots/s2', { accountId: 'a2', valueUsd: 500 });
+    seedDoc('users/u1', { householdId: 'h1' });
+
+    const res = await deleteCloudUserData({ uid: 'u1', householdId: 'h1', email: null });
+    expect(res.soloHouseholdDeleted).toBe(false);
+    expect(mockStore.has('users/u1/investmentAccounts/a1')).toBe(false);
+    expect(mockStore.has('users/u1/investmentSnapshots/s1')).toBe(false);
+    expect(mockStore.has('users/u1')).toBe(false);
+    expect(mockStore.has('users/u2/investmentAccounts/a2')).toBe(true);
+    expect(mockStore.has('users/u2/investmentSnapshots/s2')).toBe(true);
+  });
+
+  it('clears discovery-index pointers and a pending email invite so contacts cannot resolve a deleted account', async () => {
+    seedHousehold('h1', 'u1', ['u1']);
+    seedDoc('emailIndex/jane@example.com', { uid: 'u1', displayName: 'Jane' });
+    seedDoc('phoneIndex/+14165551234', { uid: 'u1' });
+    seedDoc('invites/jane@example.com', { householdId: 'other', status: 'pending' });
+    seedDoc('users/u1', { householdId: 'h1' });
+
+    await deleteCloudUserData({
+      uid: 'u1',
+      householdId: 'h1',
+      email: 'Jane@Example.com',
+      phoneE164: '+14165551234',
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockStore.has('emailIndex/jane@example.com')).toBe(false);
+    expect(mockStore.has('phoneIndex/+14165551234')).toBe(false);
+    expect(mockStore.has('invites/jane@example.com')).toBe(false);
+  });
 });

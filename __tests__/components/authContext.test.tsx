@@ -296,6 +296,7 @@ describe('AuthProvider session + household bootstrap', () => {
     expect(mockPersistActiveHouseholdId).toHaveBeenCalledWith('u1', 'hh1');
     expect(mockEnsureMembership).toHaveBeenCalledWith('u1', 'hh1');
     expect(mockSubscribeToHouseholdReceipts).toHaveBeenCalledWith('hh1', 'u1');
+    expect(mockSubscribeToInvestments).toHaveBeenCalledWith('u1');
     expect(mockProcessRecurringReceipts).toHaveBeenCalledTimes(1);
     expect(mockProcessRecurringIncomes).toHaveBeenCalledTimes(1);
 
