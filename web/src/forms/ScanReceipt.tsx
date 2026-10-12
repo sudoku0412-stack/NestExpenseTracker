@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
-import { convertEntryToUsd } from '@app/lib/currency';
 import type { Receipt } from '@app/types';
 import { Modal } from '../components';
 import { useAuth } from '../auth';
 import { useData } from '../data';
+import { draftFromParse } from '../lib/scanDraft';
 import { API_BASE } from '../premium';
 
 /** Shrinks a photo so the upload stays small and fast; receipts stay legible at 1600px. */
@@ -16,9 +16,6 @@ async function toJpegDataUrl(file: File, maxSide = 1600): Promise<string> {
   canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL('image/jpeg', 0.85);
 }
-
-const CATEGORIES = new Set(['Groceries', 'Electronics', 'Dining', 'Pharmacy', 'Gas', 'Clothing', 'Entertainment', 'Travel', 'Healthcare', 'Electricity', 'Other']);
-const numOrNull = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /** Reads a receipt photo with AI and hands the result back as a draft to review before saving. */
 export default function ScanReceipt({ onClose, onDraft }: { onClose: () => void; onDraft: (d: Partial<Receipt>) => void }) {
@@ -44,19 +41,7 @@ export default function ScanReceipt({ onClose, onDraft }: { onClose: () => void;
       if (res.status === 402) throw new Error('AI receipt scanning is a Premium feature.');
       if (!res.ok) throw new Error(res.status === 422 ? "Couldn't read that receipt. Try a clearer, flatter photo." : 'Scanning is unavailable right now. Try again shortly.');
       const r = ((await res.json()) as { receipt: Record<string, unknown> }).receipt;
-      const category = typeof r.category === 'string' && CATEGORIES.has(r.category) ? r.category : 'Other';
-      const usd = (n: unknown) => { const v = numOrNull(n); return v === null ? undefined : convertEntryToUsd(v, currency); };
-      const items = Array.isArray(r.lineItems) ? (r.lineItems as { name?: unknown; amount?: unknown }[]) : [];
-      onDraft({
-        storeName: typeof r.storeName === 'string' ? r.storeName : '',
-        date: typeof r.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(r.date) ? r.date.slice(0, 10) : undefined,
-        totalAmount: usd(r.totalAmount) ?? 0,
-        taxAmount: usd(r.taxAmount),
-        category,
-        categoryTags: [category],
-        originalCurrency: currency,
-        lineItems: items.filter((i) => typeof i.name === 'string' && numOrNull(i.amount) !== null).map((i) => ({ id: crypto.randomUUID(), name: i.name as string, amount: convertEntryToUsd(i.amount as number, currency), category })),
-      });
+      onDraft(draftFromParse(r, currency));
     } catch (e) {
       setErr((e as Error).message || 'Something went wrong.');
       setBusy(false);

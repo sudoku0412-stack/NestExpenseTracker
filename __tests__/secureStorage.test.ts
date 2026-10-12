@@ -18,6 +18,8 @@ import {
   setOnboardingSeen,
   getAiParseCountThisMonth,
   incrementAiParseCount,
+  getCloudMigrationDone,
+  setCloudMigrationDone,
 } from '../lib/secureStorage';
 
 const mockedStore = (SecureStore as unknown as { __store: Map<string, string> }).__store;
@@ -25,6 +27,7 @@ const mockedStore = (SecureStore as unknown as { __store: Map<string, string> })
 beforeEach(() => {
   mockedStore.clear();
   jest.clearAllMocks();
+  jest.useRealTimers();
 });
 
 describe('onboarding flag', () => {
@@ -60,6 +63,35 @@ describe('AI parse quota', () => {
     await incrementAiParseCount('uid-2');
     expect(await getAiParseCountThisMonth('uid-1')).toBe(2);
     expect(await getAiParseCountThisMonth('uid-2')).toBe(1);
+  });
+
+  it('does not count last month against this month (free-tier quota rollover)', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-01-15T12:00:00'));
+    expect(await incrementAiParseCount('uid-1')).toBe(1);
+    expect(await incrementAiParseCount('uid-1')).toBe(2);
+    expect(mockedStore.get('bs.aiParse.count.uid-1.2026-01')).toBe('2');
+
+    jest.setSystemTime(new Date('2026-02-01T12:00:00'));
+    expect(await getAiParseCountThisMonth('uid-1')).toBe(0);
+    expect(await incrementAiParseCount('uid-1')).toBe(1);
+    expect(mockedStore.get('bs.aiParse.count.uid-1.2026-01')).toBe('2');
+    expect(mockedStore.get('bs.aiParse.count.uid-1.2026-02')).toBe('1');
+    jest.useRealTimers();
+  });
+
+  it('treats a corrupt stored count as 0', async () => {
+    mockedStore.set(`bs.aiParse.count.uid-1.${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`, 'nope');
+    expect(await getAiParseCountThisMonth('uid-1')).toBe(0);
+  });
+});
+
+describe('cloud migration marker', () => {
+  it('is per uid so a second account on the same device still migrates', async () => {
+    expect(await getCloudMigrationDone('u1')).toBe(false);
+    await setCloudMigrationDone('u1');
+    expect(await getCloudMigrationDone('u1')).toBe(true);
+    expect(await getCloudMigrationDone('u2')).toBe(false);
   });
 });
 
