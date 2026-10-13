@@ -1,13 +1,13 @@
 import { doc, setDoc } from 'firebase/firestore';
 import { useState, type FormEvent } from 'react';
 import { calendarDateKey, formatLocalDate } from '@app/lib/calendarDate';
-import { CURRENCIES, convertEntryToUsd, convertUsdToEntry, currencyDecimals, type CurrencyCode } from '@app/lib/currency';
+import { CURRENCIES, convertUsdToEntry, currencyDecimals, type CurrencyCode } from '@app/lib/currency';
 import type { Income, IncomeCategory } from '@app/types';
 import { useAuth } from '../auth';
 import { Modal, NO_REPEAT, RecurringFields, type RecurringState } from '../components';
 import { useData } from '../data';
 import { db } from '../firebase';
-import { buildSchedule } from '../lib/schedule';
+import { buildIncomeWrite, validateIncomeDraft } from '../lib/incomeDraft';
 import { INCOME_LABELS } from '../palette';
 
 const TYPES = Object.keys(INCOME_LABELS) as IncomeCategory[];
@@ -29,28 +29,28 @@ export default function IncomeForm({ income, onClose }: { income?: Income; onClo
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!householdId || !user) return;
-    const n = Number(amount);
-    if (!source.trim()) return setErr('Enter where the money came from.');
-    if (!(n > 0)) return setErr('Enter an amount greater than zero.');
-    if (!earnedBy) return setErr('Choose who earned it.');
+    const errMsg = validateIncomeDraft({ source, amount, earnedBy });
+    if (errMsg) return setErr(errMsg);
     const now = new Date().toISOString();
     const id = income?.id ?? crypto.randomUUID();
     setBusy(true);
     try {
       await setDoc(
         doc(db, 'households', householdId, 'incomes', id),
-        {
-          sourceName: source.trim(),
+        buildIncomeWrite({
+          source,
           date,
-          amountUsd: Math.round(convertEntryToUsd(n, currency) * 100) / 100,
+          amount,
           category,
           earnedBy,
-          notes: notes.trim() || null,
-          originalCurrency: currency,
-          recurring: buildSchedule(repeat.enabled, repeat.frequency, date, parseInt(repeat.months, 10) || 0, income?.recurring?.endDate),
-          ...(income ? {} : { isRecurringOccurrence: false, createdBy: user.uid, createdAt: now }),
-          updatedAt: now,
-        },
+          notes,
+          currency,
+          repeat,
+          existingEndDate: income?.recurring?.endDate,
+          now,
+          createdBy: user.uid,
+          isNew: !income,
+        }),
         { merge: true },
       );
       onClose();

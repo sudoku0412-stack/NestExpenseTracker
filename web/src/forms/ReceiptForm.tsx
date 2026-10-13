@@ -2,18 +2,16 @@ import { doc, setDoc } from 'firebase/firestore';
 import { useMemo, useState, type FormEvent } from 'react';
 import { ALL_CATEGORIES, categoryIcon } from '@app/constants/categories';
 import { formatLocalDate, calendarDateKey } from '@app/lib/calendarDate';
-import { CURRENCIES, convertEntryToUsd, convertUsdToEntry, currencyDecimals, type CurrencyCode } from '@app/lib/currency';
+import { CURRENCIES, convertUsdToEntry, currencyDecimals, type CurrencyCode } from '@app/lib/currency';
 import type { Receipt } from '@app/types';
 import { useAuth } from '../auth';
 import { Modal, NO_REPEAT, RecurringFields, type RecurringState } from '../components';
 import { useData } from '../data';
 import { db } from '../firebase';
-import { buildSchedule } from '../lib/schedule';
+import { buildReceiptSplit, buildReceiptWrite, itemsPlusTaxMismatch, validateReceiptDraft, type SplitMethod } from '../lib/receiptDraft';
 
-type Method = 'equal' | 'percent' | 'amount' | 'shares';
+type Method = SplitMethod;
 interface Item { key: string; name: string; amount: string; category: string }
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Receipt; draft?: Partial<Receipt>; onClose: () => void }) {
   const { user } = useAuth();
@@ -50,49 +48,34 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!householdId || !user) return;
-    const totalN = Number(total);
-    if (!store.trim()) return setErr('Enter the store name.');
-    if (!(totalN > 0)) return setErr('Enter a total greater than zero.');
-    if (tags.length === 0) return setErr('Pick at least one category.');
-    if (items.some((i) => !i.name.trim() || !(Number(i.amount) !== 0 && Number.isFinite(Number(i.amount))))) return setErr('Each item needs a name and an amount.');
-    let split: Receipt['split'] | null = null;
-    if (splitOn) {
-      if (people.length < 2) return setErr('Choose at least two people to split with.');
-      const v: Record<string, number> = {};
-      if (method !== 'equal') for (const p of people) v[p] = Number(vals[p]) || 0;
-      if (method === 'percent' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - 100) > 0.01) return setErr('Percentages must add up to 100.');
-      if (method === 'amount' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - totalN) > 0.01) return setErr('Amounts must add up to the total.');
-      if (method === 'shares' && Object.values(v).every((x) => x <= 0)) return setErr('Give at least one person a share.');
-      // Amounts are typed in the entry currency; stored values are USD like the rest of the receipt.
-      const stored = method === 'amount' ? Object.fromEntries(Object.entries(v).map(([k, n]) => [k, round2(convertEntryToUsd(n, currency))])) : v;
-      split = { enabled: true, method, participantIds: people, ...(method === 'equal' ? {} : { values: stored }) };
-    }
-    const repeating = buildSchedule(repeat.enabled, repeat.frequency, date, parseInt(repeat.months, 10) || 0, receipt?.recurring?.endDate);
+    const errMsg = validateReceiptDraft({ store, total, tags, items, splitOn, method, people, vals });
+    if (errMsg) return setErr(errMsg);
+    const split = buildReceiptSplit(splitOn, method, people, vals, currency);
     const now = new Date().toISOString();
     const id = receipt?.id ?? crypto.randomUUID();
-    const [y, m, d] = date.split('-').map(Number);
     // merge: keeps fields this form does not edit (rawText, imageUri, photoUrl, ...).
     setBusy(true);
     try {
       await setDoc(
         doc(db, 'households', householdId, 'receipts', id),
-        {
+        buildReceiptWrite({
           id,
-          storeName: store.trim(),
-          date: new Date(y, m - 1, d, 12).toISOString(),
-          totalAmount: round2(convertEntryToUsd(totalN, currency)),
-          taxAmount: tax && Number(tax) > 0 ? round2(convertEntryToUsd(Number(tax), currency)) : null,
-          category: tags[0],
-          categoryTags: tags,
-          notes: notes.trim() || null,
+          store,
+          date,
+          total,
+          tax,
+          tags,
+          notes,
+          items,
           split,
-          recurring: repeating,
-          paidBy: paidBy || user.uid,
-          originalCurrency: currency,
-          lineItems: items.map((i) => ({ id: i.key, name: i.name.trim(), amount: round2(convertEntryToUsd(Number(i.amount), currency)), category: i.category, splitWith: [] })),
-          ...(receipt ? {} : { createdBy: user.uid, isRecurringOccurrence: false, rawText: null, imageUri: null, photoUrl: null, subtotalAmount: null, createdAt: now }),
-          updatedAt: now,
-        },
+          repeat,
+          existingEndDate: receipt?.recurring?.endDate,
+          paidBy,
+          fallbackUid: user.uid,
+          currency,
+          now,
+          isNew: !receipt,
+        }),
         { merge: true },
       );
       onClose();
@@ -128,7 +111,7 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
               <button type="button" className="btn sm danger" onClick={() => setItems((c) => c.filter((_, i) => i !== idx))} aria-label="Remove item">✕</button>
             </div>
           ))}
-          {items.length > 0 && Number(total) > 0 && Math.abs(itemsSum + (Number(tax) || 0) - Number(total)) > 0.02 && (
+          {itemsPlusTaxMismatch(items.length, itemsSum, tax, total) && (
             <p className="watch" style={{ fontSize: 13, marginTop: 6 }}>Items{tax ? ' plus tax' : ''} add up to {(itemsSum + (Number(tax) || 0)).toFixed(dec)}, not the total {Number(total).toFixed(dec)}.</p>
           )}
         </div>
