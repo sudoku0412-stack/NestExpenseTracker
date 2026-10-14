@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { convertEntryToUsd, convertFromUsd, currencyDecimals } from '@app/lib/currency';
 import type { SavingsGoal } from '@app/types';
 import { useData } from '../data';
+import { nextAllocatedUsd, parseGoalForm, parsePositiveDisplayAmount } from '../lib/goalDraft';
 import { deleteGoal, saveGoal } from '../lib/writes';
 import { useMoney } from '../money';
 
@@ -14,9 +15,9 @@ export default function Goals() {
   const totalSaved = goals.reduce((s, g) => s + g.allocatedUsd, 0);
 
   async function move(g: SavingsGoal, sign: 1 | -1) {
-    const n = Number(adjust[g.id]);
-    if (!householdId || !(n > 0)) return;
-    await saveGoal(householdId, { ...g, allocatedUsd: g.allocatedUsd + sign * convertEntryToUsd(n, currency) });
+    const n = parsePositiveDisplayAmount(adjust[g.id]);
+    if (!householdId || n == null) return;
+    await saveGoal(householdId, { ...g, allocatedUsd: nextAllocatedUsd(g.allocatedUsd, sign * convertEntryToUsd(n, currency)) });
     setAdjust((a) => ({ ...a, [g.id]: '' }));
   }
 
@@ -69,10 +70,10 @@ function GoalForm({ goal, onClose, onSave }: { goal?: SavingsGoal; onClose: () =
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return setErr('Give the goal a name.');
-    if (!(Number(target) > 0)) return setErr('Enter a target amount greater than zero.');
+    const parsed = parseGoalForm({ name, targetText: target, notes, currency });
+    if (!parsed.ok) return setErr(parsed.error);
     setBusy(true);
-    try { await onSave({ name, targetUsd: convertEntryToUsd(Number(target), currency), notes }); } catch { setErr('Could not save. Try again.'); setBusy(false); }
+    try { await onSave({ name: parsed.name, targetUsd: parsed.targetUsd, notes: parsed.notes }); } catch { setErr('Could not save. Try again.'); setBusy(false); }
   }
   return (
     <div className="drawer-bg" style={{ alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>

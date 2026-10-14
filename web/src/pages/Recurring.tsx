@@ -1,9 +1,8 @@
 import { useData } from '../data';
+import { frequencyLabel } from '../lib/schedule';
 import { dateLabel } from '../lib/stats';
 import { stopRecurring } from '../lib/writes';
 import { useMoney } from '../money';
-
-const FREQ: Record<string, string> = { weekly: 'Weekly', biweekly: 'Every 2 weeks', monthly: 'Monthly', yearly: 'Yearly' };
 
 export default function Recurring() {
   const { receipts, incomes, householdId } = useData();
@@ -20,7 +19,7 @@ export default function Recurring() {
         <div className="card"><h2>Recurring expenses</h2>
           {expenses.length === 0 ? <div className="empty">None yet. Mark an expense as repeating in the mobile app.</div> : (
             <table><tbody>{expenses.map((r) => (
-              <tr key={r.id}><td>{r.storeName}<div className="muted" style={{ fontSize: 12 }}>{FREQ[r.recurring!.frequency]} · next {dateLabel(r.recurring!.nextDueDate)} · ends {dateLabel(r.recurring!.endDate)}</div></td>
+              <tr key={r.id}><td>{r.storeName}<div className="muted" style={{ fontSize: 12 }}>{frequencyLabel(r.recurring!.frequency)} · next {dateLabel(r.recurring!.nextDueDate)} · ends {dateLabel(r.recurring!.endDate)}</div></td>
                 <td className="num">{fmt(r.totalAmount)}</td><td className="num"><button className="btn sm danger" onClick={() => stop('receipts', r.id, r.storeName)}>Stop</button></td></tr>
             ))}</tbody></table>
           )}
@@ -28,7 +27,7 @@ export default function Recurring() {
         <div className="card"><h2>Recurring income</h2>
           {earnings.length === 0 ? <div className="empty">None yet. Mark an income as repeating in the mobile app.</div> : (
             <table><tbody>{earnings.map((i) => (
-              <tr key={i.id}><td>{i.sourceName}<div className="muted" style={{ fontSize: 12 }}>{FREQ[i.recurring!.frequency]} · next {dateLabel(i.recurring!.nextDueDate)} · ends {dateLabel(i.recurring!.endDate)}</div></td>
+              <tr key={i.id}><td>{i.sourceName}<div className="muted" style={{ fontSize: 12 }}>{frequencyLabel(i.recurring!.frequency)} · next {dateLabel(i.recurring!.nextDueDate)} · ends {dateLabel(i.recurring!.endDate)}</div></td>
                 <td className="num">{fmt(i.amountUsd)}</td><td className="num"><button className="btn sm danger" onClick={() => stop('incomes', i.id, i.sourceName)}>Stop</button></td></tr>
             ))}</tbody></table>
           )}

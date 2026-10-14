@@ -1,13 +1,14 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { formatLocalDate } from '@app/lib/calendarDate';
-import { convertEntryToUsd, convertFromUsd, currencyDecimals } from '@app/lib/currency';
+import { convertFromUsd, currencyDecimals } from '@app/lib/currency';
 import { INVESTMENT_KIND_ICONS, INVESTMENT_KINDS, accountGain, applyContribution, applyValueUpdate, snapshotOf, summarizeInvestments } from '@app/lib/investments';
 import type { InvestmentAccount, InvestmentKind } from '@app/types';
 import { useAuth } from '../auth';
 import { Modal } from '../components';
 import { useData } from '../data';
 import { PremiumGate } from '../premium';
+import { parseInvestmentDialog } from '../lib/investmentDraft';
 import { deleteInvestment, saveInvestment, saveInvestmentSnapshot } from '../lib/writes';
 import { useMoney } from '../money';
 
@@ -131,17 +132,17 @@ function Dialogs({ dialog, onClose, currency, fmt, snapshots, onNew, onEdit, onD
     setErr('');
     try {
       if (dialog.kind === 'new' || dialog.kind === 'edit') {
-        if (!name.trim()) return setErr('Give the account a name.');
+        const parsed = parseInvestmentDialog(dialog.kind, { name, amountText: amount, contributedText: contributed, notes, currency });
+        if (!parsed.ok) return setErr(parsed.error);
         setBusy(true);
-        if (dialog.kind === 'new') await onNew({ name, kind, notes, contributedUsd: convertEntryToUsd(Number(contributed) || 0, currency), valueUsd: convertEntryToUsd(Number(amount) || 0, currency) });
-        else await onEdit(dialog.account, { name, kind, notes });
+        if (dialog.kind === 'new') await onNew({ name: parsed.name, kind, notes: parsed.notes, contributedUsd: parsed.contributedUsd, valueUsd: parsed.valueUsd });
+        else await onEdit(dialog.account, { name: parsed.name, kind, notes: parsed.notes });
       } else {
-        const n = Number(amount);
-        if (!(n > 0) && !(dialog.kind === 'value' && n === 0)) return setErr('Enter an amount greater than zero.');
+        const parsed = parseInvestmentDialog(dialog.kind, { name, amountText: amount, contributedText: contributed, notes, currency });
+        if (!parsed.ok) return setErr(parsed.error);
         setBusy(true);
-        const usd = convertEntryToUsd(n, currency);
-        if (dialog.kind === 'value') await onValue(dialog.account, usd);
-        else await onDeposit(dialog.account, dialog.kind === 'withdraw' ? -usd : usd);
+        if (dialog.kind === 'value') await onValue(dialog.account, parsed.valueUsd);
+        else await onDeposit(dialog.account, parsed.deltaUsd);
       }
       onClose();
     } catch {
