@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advance, buildSchedule, endDateAfter } from '../schedule';
+import { advance, buildSchedule, endDateAfter, frequencyLabel } from '../schedule';
 
 describe('advance', () => {
   it('moves one period ahead for every frequency', () => {
@@ -30,5 +30,13 @@ describe('buildSchedule', () => {
   });
   it('defaults to 12 months for a brand new schedule with no duration', () => {
     expect(buildSchedule(true, 'monthly', '2026-01-10', 0)?.endDate).toBe(endDateAfter('2026-01-10', 12));
+  });
+});
+
+describe('frequencyLabel', () => {
+  it('uses the same labels as the schedule picker, and falls back to the raw id', () => {
+    expect(frequencyLabel('biweekly')).toBe('Every 2 weeks');
+    expect(frequencyLabel('monthly')).toBe('Monthly');
+    expect(frequencyLabel('custom')).toBe('custom');
   });
 });

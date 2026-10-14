@@ -6,6 +6,9 @@ export const FREQUENCIES: { id: Frequency; label: string }[] = [
   { id: 'yearly', label: 'Yearly' },
 ];
 
+export const frequencyLabel = (id: string): string =>
+  FREQUENCIES.find((f) => f.id === id)?.label ?? id;
+
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parse = (s: string) => { const [y, m, d] = s.slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
 

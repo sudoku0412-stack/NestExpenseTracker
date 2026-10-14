@@ -5,7 +5,8 @@ import { computeCashflow } from '@app/lib/cashflowStats';
 import { computeStats } from '@app/lib/dashboardStats';
 import { categoryIcon } from '@app/constants/categories';
 import { useData } from '../data';
-import { computeBudgetSpend, dailySeries, dateLabel, daysInMonth, inMonth, shiftMonth, topStores, trend, upcomingRecurring } from '../lib/stats';
+import { monthSpendProjection, vsPreviousPct } from '../lib/dashboardProjection';
+import { computeBudgetSpend, dailySeries, dateLabel, inMonth, shiftMonth, topStores, trend, upcomingRecurring } from '../lib/stats';
 import { useMoney } from '../money';
 import { INCOME_COLORS, INCOME_LABELS, SERIES, STATUS_CLASS, STATUS_COLOR } from '../palette';
 import { MonthPicker, usePeriod } from '../period';
@@ -24,13 +25,10 @@ export default function Dashboard() {
     const prevSpent = inMonth(receipts, prev.year, prev.month).reduce((s, r) => s + r.totalAmount, 0);
     const stats = computeStats(rs);
     const cash = computeCashflow(is, rs);
-    const now = new Date();
-    const isCurrent = now.getFullYear() === year && now.getMonth() + 1 === month;
-    const elapsed = isCurrent ? now.getDate() : daysInMonth(year, month);
-    const dayAvg = elapsed > 0 ? stats.totalSpent / elapsed : 0;
+    const spend = monthSpendProjection(stats.totalSpent, year, month, new Date());
     return {
-      rs, is, stats, cash, prevSpent, isCurrent, dayAvg,
-      projected: isCurrent ? dayAvg * daysInMonth(year, month) : stats.totalSpent,
+      rs, is, stats, cash, prevSpent, isCurrent: spend.isCurrent, dayAvg: spend.dayAvg,
+      projected: spend.projected,
       daily: dailySeries(rs, year, month),
       months: trend(receipts, incomes, year, month, 6),
       budget: computeBudgetOverview(budgets, computeBudgetSpend(rs)),
@@ -42,7 +40,7 @@ export default function Dashboard() {
   }, [receipts, incomes, budgets, year, month]);
 
   const { stats, cash } = m;
-  const delta = m.prevSpent > 0 ? ((stats.totalSpent - m.prevSpent) / m.prevSpent) * 100 : null;
+  const delta = vsPreviousPct(stats.totalSpent, m.prevSpent);
   const budgetState = budgetStatus(m.budget.totalSpent, m.budget.totalBudget);
   const budgetTone = budgetState === 'over' ? 'red' : budgetState === 'watch' ? 'amber' : 'green';
   const noData = m.rs.length === 0 && m.is.length === 0;
