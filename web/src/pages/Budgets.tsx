@@ -3,6 +3,7 @@ import { ALL_CATEGORIES, categoryIcon } from '@app/constants/categories';
 import { computeBudgetOverview } from '@app/lib/budgetOverview';
 import { convertEntryToUsd, convertFromUsd, currencyDecimals } from '@app/lib/currency';
 import { useData } from '../data';
+import { parseBudgetAmount, unbudgetedCategories } from '../lib/budgetInput';
 import { computeBudgetSpend, inMonth } from '../lib/stats';
 import { setBudgetAlertsEnabled, setCategoryBudget } from '../lib/writes';
 import { useMoney } from '../money';
@@ -24,7 +25,7 @@ export default function Budgets() {
     [budgets, receipts, year, month],
   );
   const unbudgeted = useMemo(
-    () => [...(ALL_CATEGORIES as string[]), ...customCategories.map((c) => c.name)].filter((c) => !(budgets[c] > 0)),
+    () => unbudgetedCategories([...(ALL_CATEGORIES as string[]), ...customCategories.map((c) => c.name)], budgets),
     [budgets, customCategories],
   );
   const decimals = currencyDecimals(currency);
@@ -32,8 +33,8 @@ export default function Budgets() {
 
   async function save(category: string, text: string) {
     if (!householdId) return;
-    const n = Number(text);
-    if (!Number.isFinite(n) || n < 0) return setError('Enter a number of zero or more.');
+    const n = parseBudgetAmount(text);
+    if (n === null) return setError('Enter a number of zero or more.');
     setError('');
     try {
       await setCategoryBudget(householdId, category, convertEntryToUsd(n, currency));

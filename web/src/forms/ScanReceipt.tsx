@@ -4,6 +4,7 @@ import type { Receipt } from '@app/types';
 import { Modal } from '../components';
 import { useAuth } from '../auth';
 import { useData } from '../data';
+import { scanFailureMessage } from '../lib/scanHttp';
 import { API_BASE } from '../premium';
 
 /** Shrinks a photo so the upload stays small and fast; receipts stay legible at 1600px. */
@@ -41,8 +42,7 @@ export default function ScanReceipt({ onClose, onDraft }: { onClose: () => void;
         headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ image }),
       });
-      if (res.status === 402) throw new Error('AI receipt scanning is a Premium feature.');
-      if (!res.ok) throw new Error(res.status === 422 ? "Couldn't read that receipt. Try a clearer, flatter photo." : 'Scanning is unavailable right now. Try again shortly.');
+      if (!res.ok) throw new Error(scanFailureMessage(res.status));
       const r = ((await res.json()) as { receipt: Record<string, unknown> }).receipt;
       const category = typeof r.category === 'string' && CATEGORIES.has(r.category) ? r.category : 'Other';
       const usd = (n: unknown) => { const v = numOrNull(n); return v === null ? undefined : convertEntryToUsd(v, currency); };
