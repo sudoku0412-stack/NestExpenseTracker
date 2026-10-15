@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { Income } from '@app/types';
 import { useData } from '../data';
-import { dateLabel, inMonth } from '../lib/stats';
+import { filterIncomeRows } from '../lib/listFilter';
+import { dateLabel } from '../lib/stats';
 import IncomeForm from '../forms/IncomeForm';
 import { deleteIncome } from '../lib/writes';
 import { useMoney } from '../money';
@@ -16,7 +17,7 @@ export default function Incomes() {
   const [person, setPerson] = useState('all');
 
   const rows = useMemo(
-    () => inMonth(incomes, year, month).filter((i) => person === 'all' || i.earnedBy === person).sort((a, b) => b.date.localeCompare(a.date)),
+    () => filterIncomeRows(incomes, { year, month, earnedBy: person }),
     [incomes, year, month, person],
   );
   const total = rows.reduce((s, i) => s + i.amountUsd, 0);

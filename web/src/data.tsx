@@ -11,6 +11,7 @@ import type { CurrencyCode } from '@app/lib/currency';
 import type { Income, InvestmentAccount, InvestmentKind, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
 import { useAuth } from './auth';
 import { db } from './firebase';
+import { lookupMemberName, nameFromUserDoc } from './lib/memberName';
 
 export interface Member {
   uid: string;
@@ -191,7 +192,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
               try {
                 const u = (await getDoc(doc(db, 'users', uid))).data();
                 const email = (u?.email as string | null) ?? null;
-                return { uid, name: str(u?.displayName) || email?.split('@')[0] || 'Member', email };
+                return { uid, name: nameFromUserDoc(u?.displayName, email), email };
               } catch {
                 return { uid, name: 'Member', email: null };
               }
@@ -267,7 +268,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       error,
       householdId,
       members,
-      memberName: (uid) => (uid ? byUid.get(uid) ?? 'Member' : 'Member'),
+      memberName: (uid) => lookupMemberName(byUid, uid),
       budgets,
       budgetAlerts,
       customCategories,

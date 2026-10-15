@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { ALL_CATEGORIES, categoryIcon } from '@app/constants/categories';
 import type { Receipt } from '@app/types';
 import { useData } from '../data';
-import { dateLabel, inMonth } from '../lib/stats';
+import { filterReceiptRows } from '../lib/listFilter';
+import { dateLabel } from '../lib/stats';
 import ReceiptForm from '../forms/ReceiptForm';
 import ScanReceipt from '../forms/ScanReceipt';
 import { usePremium } from '../premium';
@@ -23,13 +24,10 @@ export default function Receipts() {
   const { premium } = usePremium();
 
   const categories = useMemo(() => [...ALL_CATEGORIES as string[], ...customCategories.map((c) => c.name)], [customCategories]);
-  const rows = useMemo(() => {
-    const base = scope === 'month' ? inMonth(receipts, year, month) : receipts;
-    const needle = q.trim().toLowerCase();
-    return base
-      .filter((r) => (cat === 'all' || r.category === cat) && (!needle || r.storeName.toLowerCase().includes(needle) || (r.notes ?? '').toLowerCase().includes(needle)))
-      .sort((a, b) => b.date.localeCompare(a.date));
-  }, [receipts, scope, year, month, q, cat]);
+  const rows = useMemo(
+    () => filterReceiptRows(receipts, { scope, year, month, query: q, category: cat }),
+    [receipts, scope, year, month, q, cat],
+  );
   const total = rows.reduce((s, r) => s + r.totalAmount, 0);
 
   return (

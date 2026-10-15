@@ -1,15 +1,17 @@
 import { useData } from '../data';
+import { FREQUENCIES } from '../lib/schedule';
+import { sortRecurringTemplates } from '../lib/listFilter';
 import { dateLabel } from '../lib/stats';
 import { stopRecurring } from '../lib/writes';
 import { useMoney } from '../money';
 
-const FREQ: Record<string, string> = { weekly: 'Weekly', biweekly: 'Every 2 weeks', monthly: 'Monthly', yearly: 'Yearly' };
+const FREQ: Record<string, string> = Object.fromEntries(FREQUENCIES.map((f) => [f.id, f.label]));
 
 export default function Recurring() {
   const { receipts, incomes, householdId } = useData();
   const fmt = useMoney();
-  const expenses = receipts.filter((r) => r.recurring).sort((a, b) => a.recurring!.nextDueDate.localeCompare(b.recurring!.nextDueDate));
-  const earnings = incomes.filter((i) => i.recurring).sort((a, b) => a.recurring!.nextDueDate.localeCompare(b.recurring!.nextDueDate));
+  const expenses = sortRecurringTemplates(receipts);
+  const earnings = sortRecurringTemplates(incomes);
   const stop = (kind: 'receipts' | 'incomes', id: string, name: string) => {
     if (householdId && confirm(`Stop repeating "${name}"? Entries already added stay.`)) void stopRecurring(householdId, kind, id);
   };
