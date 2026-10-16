@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Income, Receipt } from '@app/types';
-import { computeBudgetSpend, dailySeries, inMonth, shiftMonth, topStores, trend, upcomingRecurring } from '../stats';
+import { computeBudgetSpend, dailySeries, dateLabel, daysInMonth, inMonth, isRecurringExpense, monthName, shiftMonth, topStores, trend, upcomingRecurring } from '../stats';
 
 const r = (o: Partial<Receipt>): Receipt => ({ id: 'r', storeName: 'Shop', date: '2026-03-05', totalAmount: 100, category: 'Groceries', createdAt: '', updatedAt: '', ...o });
 const inc = (o: Partial<Income>): Income => ({ id: 'i', sourceName: 'Pay', date: '2026-03-01', amountUsd: 1000, category: 'Salary', earnedBy: 'u', createdAt: '', updatedAt: '', ...o });
@@ -19,6 +19,25 @@ describe('computeBudgetSpend', () => {
     expect(out.Recurring).toBe(150);
     expect(out.Groceries).toBe(100);
   });
+  it('falls back to the receipt category when line items cancel out (net ~0)', () => {
+    const out = computeBudgetSpend([r({
+      totalAmount: 10,
+      category: 'Dining',
+      lineItems: [
+        { id: 'a', name: 'meal', amount: 10, category: 'Dining' },
+        { id: 'b', name: 'coupon', amount: -10, category: 'Other' },
+      ],
+    })]);
+    expect(out).toEqual({ Dining: 10 });
+  });
+  it('uses the receipt category when an item has no category of its own', () => {
+    const out = computeBudgetSpend([r({
+      totalAmount: 50,
+      category: 'Groceries',
+      lineItems: [{ id: 'a', name: 'milk', amount: 50 }],
+    })]);
+    expect(out).toEqual({ Groceries: 50 });
+  });
 });
 
 describe('month helpers', () => {
@@ -35,6 +54,18 @@ describe('month helpers', () => {
     expect(d[1].spent).toBe(10);
     expect(d[27].total).toBe(15);
   });
+  it('uses 29 days in a leap February and skips junk dates', () => {
+    expect(daysInMonth(2024, 2)).toBe(29);
+    expect(daysInMonth(2026, 2)).toBe(28);
+    const d = dailySeries([r({ date: 'not-a-date', totalAmount: 99 }), r({ date: '2024-02-29', totalAmount: 7 })], 2024, 2);
+    expect(d).toHaveLength(29);
+    expect(d[28]).toEqual({ day: 29, spent: 7, total: 7 });
+  });
+  it('names a month in en-US and formats a civil date without a UTC shift', () => {
+    expect(monthName(2026, 3)).toBe('March 2026');
+    expect(dateLabel('2026-03-01')).toBe('Mar 1, 2026');
+    expect(dateLabel('not-a-date')).toBe('not-a-date');
+  });
 });
 
 describe('trend and stores', () => {
@@ -47,6 +78,10 @@ describe('trend and stores', () => {
     const s = topStores([r({ storeName: 'Costco', totalAmount: 50 }), r({ storeName: 'costco ', totalAmount: 70 }), r({ storeName: 'Aldi', totalAmount: 90 })]);
     expect(s.map((x) => [x.store, x.total, x.count])).toEqual([['Costco', 120, 2], ['Aldi', 90, 1]]);
   });
+  it('labels a blank store Unknown and honors the limit', () => {
+    const s = topStores([r({ storeName: '   ', totalAmount: 10 }), r({ id: '2', storeName: 'Keep', totalAmount: 1 })], 1);
+    expect(s).toEqual([{ store: 'Unknown', total: 10, count: 1 }]);
+  });
   it('lists only active recurring templates, soonest first', () => {
     const out = upcomingRecurring([
       r({ id: 'late', recurring: { frequency: 'monthly', nextDueDate: '2026-06-01', endDate: '2027-01-01' } }),
@@ -54,5 +89,14 @@ describe('trend and stores', () => {
       r({ id: 'ended', recurring: { frequency: 'weekly', nextDueDate: '2026-05-01', endDate: '2026-01-01' } }),
     ], new Date('2026-04-15T12:00:00Z'));
     expect(out.map((x) => x.receipt.id)).toEqual(['soon', 'late']);
+  });
+  it('keeps a template whose end date is today and treats an occurrence flag as recurring spend', () => {
+    const today = new Date('2026-04-15T12:00:00Z');
+    const out = upcomingRecurring([
+      r({ id: 'ends-today', recurring: { frequency: 'weekly', nextDueDate: '2026-04-15', endDate: '2026-04-15' } }),
+    ], today);
+    expect(out.map((x) => x.receipt.id)).toEqual(['ends-today']);
+    expect(isRecurringExpense(r({ isRecurringOccurrence: true }))).toBe(true);
+    expect(isRecurringExpense(r({}))).toBe(false);
   });
 });

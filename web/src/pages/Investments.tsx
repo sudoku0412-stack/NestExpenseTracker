@@ -8,6 +8,7 @@ import { useAuth } from '../auth';
 import { Modal } from '../components';
 import { useData } from '../data';
 import { PremiumGate } from '../premium';
+import { historyChartPoints, investmentHistoryRows } from '../lib/investmentHistory';
 import { deleteInvestment, saveInvestment, saveInvestmentSnapshot } from '../lib/writes';
 import { useMoney } from '../money';
 
@@ -114,11 +115,11 @@ function Dialogs({ dialog, onClose, currency, fmt, snapshots, onNew, onEdit, onD
   const [busy, setBusy] = useState(false);
 
   if (dialog.kind === 'history') {
-    const rows = snapshots.filter((s) => s.accountId === dialog.account.id).sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
+    const rows = investmentHistoryRows(snapshots, dialog.account.id);
     return (
       <Modal title={`${dialog.account.name} history`} onClose={onClose}>
         {rows.length === 0 ? <div className="empty">No history yet. It builds each time you deposit, withdraw or update the value.</div> : (<>
-          <div style={{ height: 180 }}><ResponsiveContainer><BarChart data={rows.slice(-12).map((r) => ({ date: r.date.slice(5), value: r.valueUsd }))}>
+          <div style={{ height: 180 }}><ResponsiveContainer><BarChart data={historyChartPoints(rows)}>
             <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickLine={false} axisLine={false} /><Tooltip formatter={(v) => fmt(Number(v))} contentStyle={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 12 }} />
             <Bar dataKey="value" name="Value" fill="#9b6bf2" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
           <table><tbody>{[...rows].reverse().map((r) => <tr key={r.id}><td>{r.date}</td><td className="num">{fmt(r.valueUsd)}</td><td className="num muted">{fmt(r.contributedUsd)} in</td></tr>)}</tbody></table></>)}

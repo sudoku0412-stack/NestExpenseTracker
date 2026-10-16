@@ -8,6 +8,7 @@ import {
   receiptsToCsv,
   summarizeRange,
   periodOverPeriodDelta,
+  filterDatedInRange,
   filterReceiptsInRange,
 } from '../lib/reports';
 import { Receipt } from '../types';
@@ -288,6 +289,28 @@ describe('filterReceiptsInRange', () => {
       new Date(2027, 0, 31),
     );
     expect(r).toEqual([]);
+  });
+});
+
+describe('filterDatedInRange', () => {
+  it('keeps date-only and local-ISO incomes on the same civil day', () => {
+    const rows = [
+      { id: 'civil', date: '2026-03-01', amountUsd: 100 },
+      { id: 'local-iso', date: new Date(2026, 2, 1, 12, 0, 0).toISOString(), amountUsd: 50 },
+      { id: 'feb', date: '2026-02-28', amountUsd: 9 },
+      { id: 'apr', date: '2026-04-01', amountUsd: 9 },
+      { id: 'junk', date: 'not-a-date', amountUsd: 9 },
+    ];
+    const inMarch = filterDatedInRange(rows, new Date(2026, 2, 1), new Date(2026, 2, 31));
+    expect(inMarch.map((r) => r.id)).toEqual(['civil', 'local-iso']);
+  });
+
+  it('uses the local civil day of a timestamp, not the UTC YYYY-MM-DD prefix', () => {
+    // 8pm Feb 28 local is often March 1 in UTC. A naive date.slice(0, 10) would
+    // then count it as March and inflate Reports earned totals.
+    const lateFeb = { id: 'late', date: new Date(2026, 1, 28, 20, 0, 0).toISOString() };
+    expect(filterDatedInRange([lateFeb], new Date(2026, 2, 1), new Date(2026, 2, 31))).toEqual([]);
+    expect(filterDatedInRange([lateFeb], new Date(2026, 1, 1), new Date(2026, 1, 28)).map((r) => r.id)).toEqual(['late']);
   });
 });
 
