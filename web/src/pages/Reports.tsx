@@ -3,7 +3,7 @@ import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContai
 import { categoryIcon } from '@app/constants/categories';
 import { formatLocalDate } from '@app/lib/calendarDate';
 import { computeCashflow } from '@app/lib/cashflowStats';
-import { categoryTrends, filterReceiptsInRange, findRecurring, monthlyTrend, periodOverPeriodDelta, receiptsToCsv, topStores } from '@app/lib/reports';
+import { categoryTrends, filterDatedInRange, filterReceiptsInRange, findRecurring, monthlyTrend, periodOverPeriodDelta, receiptsToCsv, topStores } from '@app/lib/reports';
 import { useData } from '../data';
 import { useMoney } from '../money';
 import { SERIES } from '../palette';
@@ -44,7 +44,7 @@ export default function Reports() {
 
   const r = useMemo(() => {
     const scoped = filterReceiptsInRange(receipts, start, end);
-    const inc = incomes.filter((i) => { const d = parseYmd(i.date.slice(0, 10)); return d >= start && d <= end; });
+    const inc = filterDatedInRange(incomes, start, end);
     const delta = periodOverPeriodDelta(receipts, start, end);
     const cash = computeCashflow(inc, scoped);
     const trend = monthlyTrend(receipts, end.getFullYear(), end.getMonth() + 1, 12);

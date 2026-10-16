@@ -258,12 +258,21 @@ export function summarizeMonth(
  * Filter the receipts that fall within [start, end] (inclusive on
  * both ends, day-level granularity in LOCAL time).
  */
+/** Any dated row (receipts, incomes) inside [start, end] on the civil calendar. */
+export function filterDatedInRange<T extends { date: string }>(
+  rows: T[],
+  start: Date,
+  end: Date,
+): T[] {
+  return rows.filter((r) => isInCalendarRange(r.date, start, end));
+}
+
 export function filterReceiptsInRange(
   receipts: Receipt[],
   start: Date,
   end: Date,
 ): Receipt[] {
-  return receipts.filter((r) => isInCalendarRange(r.date, start, end));
+  return filterDatedInRange(receipts, start, end);
 }
 
 function startOfLocalDay(d: Date): Date {

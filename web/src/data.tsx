@@ -11,6 +11,7 @@ import type { CurrencyCode } from '@app/lib/currency';
 import type { Income, InvestmentAccount, InvestmentKind, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
 import { useAuth } from './auth';
 import { db } from './firebase';
+import { toGoal, toSettlement } from './lib/householdRows';
 
 export interface Member {
   uid: string;
@@ -226,19 +227,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       onSnapshot(
         collection(base, 'settlements'),
         (snap) => {
-          setSettlements(
-            snap.docs.map((x) => {
-              const d = x.data();
-              return {
-                id: x.id,
-                fromUid: str(d.fromUid),
-                toUid: str(d.toUid),
-                amountUsd: num(d.amountUsd),
-                createdAt: str(d.createdAt),
-                householdId,
-              };
-            }),
-          );
+          setSettlements(snap.docs.map((x) => toSettlement(x.id, x.data(), householdId)));
           setLoaded((l) => ({ ...l, settlements: true }));
         },
         fail,
@@ -248,12 +237,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       onSnapshot(
         collection(base, 'savingsGoals'),
         (snap) =>
-          setGoals(
-            snap.docs.map((x) => {
-              const d = x.data();
-              return { id: x.id, name: str(d.name), targetUsd: num(d.targetUsd), allocatedUsd: num(d.allocatedUsd), notes: d.notes ?? undefined, householdId, createdAt: str(d.createdAt), updatedAt: str(d.updatedAt) };
-            }),
-          ),
+          setGoals(snap.docs.map((x) => toGoal(x.id, x.data(), householdId))),
         fail,
       ),
     );

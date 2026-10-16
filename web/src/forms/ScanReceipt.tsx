@@ -4,12 +4,13 @@ import type { Receipt } from '@app/types';
 import { Modal } from '../components';
 import { useAuth } from '../auth';
 import { useData } from '../data';
+import { fitImageScale } from '../lib/imageFit';
 import { API_BASE } from '../premium';
 
 /** Shrinks a photo so the upload stays small and fast; receipts stay legible at 1600px. */
 async function toJpegDataUrl(file: File, maxSide = 1600): Promise<string> {
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const scale = fitImageScale(bitmap.width, bitmap.height, maxSide);
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
