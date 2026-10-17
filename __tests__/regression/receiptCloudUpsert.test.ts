@@ -130,8 +130,15 @@ jest.mock('expo-sqlite', () => ({
       }
       if (!sql.includes('FROM receipts')) return [];
       const uid = (/WHERE id=\?/i.test(sql) ? params[1] : params[0]) as string;
+      const { isInCalendarMonth } = require('../../lib/calendarDate');
       return [...mockReceipts.values()]
         .filter((r) => r.user_id === uid && mockMatchesHid(r, sql, params))
+        .filter((r) => {
+          if (!sql.includes('length(')) return true;
+          const start = params[1] as string; // YYYY-MM-DD from calendarMonthSqlParams
+          const [year, month] = start.split('-').map(Number);
+          return isInCalendarMonth(r.date, year, month);
+        })
         .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     }),
     getFirstAsync: jest.fn(async (sql: string, params: unknown[]) => {
@@ -224,6 +231,16 @@ jest.mock('expo-sqlite', () => ({
         });
         return { lastInsertRowId: 0, changes: 1 };
       }
+      if (/UPDATE receipts SET photo_url/i.test(sql)) {
+        const photoUrl = params[0] as string;
+        const id = params[1] as string;
+        const uid = params[2] as string;
+        const row = mockReceipts.get(id);
+        if (row && row.user_id === uid && mockMatchesHid(row, sql, params)) {
+          mockReceipts.set(id, { ...row, photo_url: photoUrl });
+        }
+        return { lastInsertRowId: 0, changes: 1 };
+      }
       return { lastInsertRowId: 0, changes: 0 };
     }),
   }),
@@ -245,10 +262,12 @@ import {
   getAllReceipts,
   getAllReceiptsForHousehold,
   getReceiptById,
+  getReceiptsByMonth,
   saveReceipt,
   searchReceipts,
   setCurrentHouseholdId,
   setCurrentUserId,
+  setReceiptPhotoUrl,
   updateReceipt,
   upsertReceiptFromCloud,
 } from '../../lib/database';
@@ -451,6 +470,45 @@ describe('household isolation', () => {
 
     const hits = await searchReceipts('costco');
     expect(hits.map((r) => r.id)).toEqual(['mine']);
+  });
+
+  it('getReceiptsByMonth stays in the civil month, household, and attaches line items', async () => {
+    seed({ id: 'in-month', date: '2026-03-15', household_id: 'hh1' });
+    seed({ id: 'date-only-first', date: '2026-03-01', household_id: 'hh1' });
+    seed({ id: 'prev-month', date: '2026-02-28', household_id: 'hh1' });
+    seed({ id: 'next-month', date: '2026-04-01', household_id: 'hh1' });
+    seed({ id: 'other-hh', date: '2026-03-20', household_id: 'hh-other' });
+    mockLineItems.push({
+      id: 'li-m',
+      receipt_id: 'in-month',
+      name: 'Milk',
+      amount: 5,
+      category: 'Groceries',
+      split_with: null,
+    });
+
+    const rows = await getReceiptsByMonth(2026, 3);
+    expect(rows.map((r) => r.id).sort()).toEqual(['date-only-first', 'in-month']);
+    const withItems = rows.find((r) => r.id === 'in-month');
+    expect(withItems?.lineItems).toEqual([
+      expect.objectContaining({ id: 'li-m', name: 'Milk', category: 'Groceries' }),
+    ]);
+  });
+
+  it('setReceiptPhotoUrl writes only the matching user+household row', async () => {
+    seed({ id: 'mine', household_id: 'hh1', photo_url: null });
+    seed({ id: 'theirs', household_id: 'hh-other', photo_url: null });
+
+    await setReceiptPhotoUrl('mine', 'https://cdn.example/mine.jpg');
+    await setReceiptPhotoUrl('theirs', 'https://cdn.example/leak.jpg');
+
+    expect(mockReceipts.get('mine')?.photo_url).toBe('https://cdn.example/mine.jpg');
+    expect(mockReceipts.get('theirs')?.photo_url).toBeNull();
+
+    await setCurrentUserId(null);
+    await expect(setReceiptPhotoUrl('mine', 'https://cdn.example/x.jpg')).rejects.toThrow(
+      /No authenticated user/,
+    );
   });
 
   it('throws when reading receipts with no signed-in user', async () => {
