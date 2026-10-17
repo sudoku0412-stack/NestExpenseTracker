@@ -11,6 +11,7 @@ import type { CurrencyCode } from '@app/lib/currency';
 import type { Income, InvestmentAccount, InvestmentKind, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
 import { useAuth } from './auth';
 import { db } from './firebase';
+import { isHouseholdReady, nameFromUserDoc, parseHouseholdSnapshot } from './lib/householdDoc';
 
 export interface Member {
   uid: string;
@@ -181,17 +182,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
       onSnapshot(
         base,
         async (snap) => {
-          const d = snap.data() ?? {};
-          setBudgets((d.budgets?.byCategory as Record<string, number>) ?? {});
-          setBudgetAlerts(d.budgets?.alertsEnabled !== false);
-          setCustomCategories(Array.isArray(d.customCategories) ? d.customCategories : []);
-          const uids: string[] = Array.isArray(d.memberUids) ? d.memberUids : [];
+          const parsed = parseHouseholdSnapshot(snap.data());
+          setBudgets(parsed.budgets);
+          setBudgetAlerts(parsed.budgetAlerts);
+          setCustomCategories(parsed.customCategories);
           const people = await Promise.all(
-            uids.map(async (uid) => {
+            parsed.memberUids.map(async (uid) => {
               try {
                 const u = (await getDoc(doc(db, 'users', uid))).data();
-                const email = (u?.email as string | null) ?? null;
-                return { uid, name: str(u?.displayName) || email?.split('@')[0] || 'Member', email };
+                const { name, email } = nameFromUserDoc(u);
+                return { uid, name, email };
               } catch {
                 return { uid, name: 'Member', email: null };
               }
@@ -263,7 +263,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const value = useMemo<DataValue>(() => {
     const byUid = new Map(members.map((m) => [m.uid, m.name]));
     return {
-      ready: Boolean(householdId) && loaded.receipts && loaded.incomes && loaded.settlements,
+      ready: isHouseholdReady(householdId, loaded),
       error,
       householdId,
       members,

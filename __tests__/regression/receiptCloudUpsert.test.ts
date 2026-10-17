@@ -130,9 +130,21 @@ jest.mock('expo-sqlite', () => ({
       }
       if (!sql.includes('FROM receipts')) return [];
       const uid = (/WHERE id=\?/i.test(sql) ? params[1] : params[0]) as string;
-      return [...mockReceipts.values()]
-        .filter((r) => r.user_id === uid && mockMatchesHid(r, sql, params))
-        .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      let rows = [...mockReceipts.values()].filter(
+        (r) => r.user_id === uid && mockMatchesHid(r, sql, params),
+      );
+      if (sql.includes('lower(store_name) LIKE')) {
+        const needle = String(params[1] ?? '')
+          .replace(/%/g, '')
+          .toLowerCase();
+        rows = rows.filter(
+          (r) =>
+            r.store_name.toLowerCase().includes(needle) ||
+            r.category.toLowerCase().includes(needle) ||
+            (r.notes ?? '').toLowerCase().includes(needle),
+        );
+      }
+      return rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     }),
     getFirstAsync: jest.fn(async (sql: string, params: unknown[]) => {
       if (sql.includes('SELECT updated_at FROM receipts')) {
@@ -451,6 +463,16 @@ describe('household isolation', () => {
 
     const hits = await searchReceipts('costco');
     expect(hits.map((r) => r.id)).toEqual(['mine']);
+  });
+
+  it('searchReceipts matches store, category, or notes case-insensitively', async () => {
+    seed({ id: 's1', store_name: 'Costco', category: 'Groceries', notes: null, date: '2026-03-03' });
+    seed({ id: 's2', store_name: 'Shell', category: 'Gas', notes: 'road trip', date: '2026-03-02' });
+    seed({ id: 's3', store_name: 'Aldi', category: 'Groceries', notes: 'birthday cake', date: '2026-03-01' });
+
+    expect((await searchReceipts('COSTCO')).map((r) => r.id)).toEqual(['s1']);
+    expect((await searchReceipts('gas')).map((r) => r.id)).toEqual(['s2']);
+    expect((await searchReceipts('Birthday')).map((r) => r.id)).toEqual(['s3']);
   });
 
   it('throws when reading receipts with no signed-in user', async () => {
