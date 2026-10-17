@@ -19,6 +19,31 @@ describe('computeBudgetSpend', () => {
     expect(out.Recurring).toBe(150);
     expect(out.Groceries).toBe(100);
   });
+  it('attributes an item with a blank category to the receipt category', () => {
+    const out = computeBudgetSpend([
+      r({
+        totalAmount: 100,
+        lineItems: [
+          { id: 'a', name: 'milk', amount: 40, category: '' as never },
+          { id: 'b', name: 'shirt', amount: 60, category: 'Clothing' },
+        ],
+      }),
+    ]);
+    expect(out.Groceries).toBeCloseTo(40, 5);
+    expect(out.Clothing).toBeCloseTo(60, 5);
+  });
+  it('does not split when item amounts net to ~0, so a discounted receipt stays on its own category', () => {
+    const out = computeBudgetSpend([
+      r({
+        totalAmount: 20,
+        lineItems: [
+          { id: 'a', name: 'item', amount: 0.002, category: 'Clothing' },
+          { id: 'b', name: 'coupon', amount: 0.001, category: 'Clothing' },
+        ],
+      }),
+    ]);
+    expect(out).toEqual({ Groceries: 20 });
+  });
 });
 
 describe('month helpers', () => {
