@@ -18,6 +18,12 @@ import {
   setOnboardingSeen,
   getAiParseCountThisMonth,
   incrementAiParseCount,
+  applyBudgetsSnapshot,
+  clearBudgetsForHousehold,
+  getBudgetsSnapshot,
+  getCategoryBudgets,
+  setBudgetAlertsEnabled,
+  setCategoryBudget,
 } from '../lib/secureStorage';
 
 const mockedStore = (SecureStore as unknown as { __store: Map<string, string> }).__store;
@@ -69,5 +75,53 @@ describe('storage key namespace', () => {
     for (const key of mockedStore.keys()) {
       expect(key.startsWith('bs.')).toBe(true);
     }
+  });
+});
+
+describe('household budgets snapshot', () => {
+  beforeEach(async () => {
+    mockedStore.set('bs.budgets.legacyMigrated', '1');
+  });
+
+  it('treats corrupt JSON as an empty budget map', async () => {
+    mockedStore.set('bs.budgets.byCategory.hh1', '{not-json');
+    await expect(getCategoryBudgets('hh1')).resolves.toEqual({});
+  });
+
+  it('getBudgetsSnapshot composes amounts and the alerts toggle', async () => {
+    await setCategoryBudget('hh1', 'Groceries', 200);
+    await setBudgetAlertsEnabled('hh1', true);
+    await expect(getBudgetsSnapshot('hh1')).resolves.toEqual({
+      byCategory: { Groceries: 200 },
+      alertsEnabled: true,
+    });
+  });
+
+  it('applyBudgetsSnapshot merges remote amounts and does not drop local categories omitted from the snapshot', async () => {
+    await setCategoryBudget('hh1', 'Groceries', 100);
+    await setCategoryBudget('hh1', 'Dining', 50);
+    await applyBudgetsSnapshot('hh1', {
+      byCategory: { Groceries: 250 },
+      alertsEnabled: true,
+    });
+    await expect(getBudgetsSnapshot('hh1')).resolves.toEqual({
+      byCategory: { Groceries: 250, Dining: 50 },
+      alertsEnabled: true,
+    });
+  });
+
+  it('clearBudgetsForHousehold only wipes that household', async () => {
+    await setCategoryBudget('hh1', 'Groceries', 100);
+    await setCategoryBudget('hh2', 'Groceries', 999);
+    await setBudgetAlertsEnabled('hh2', true);
+    mockedStore.set('bs.customCategories.hh1', '[{"name":"Pets","color":"#111"}]');
+    mockedStore.set('bs.customCategories.hh2', '[{"name":"Keep","color":"#222"}]');
+
+    await clearBudgetsForHousehold('hh1');
+
+    await expect(getCategoryBudgets('hh1')).resolves.toEqual({});
+    await expect(getCategoryBudgets('hh2')).resolves.toEqual({ Groceries: 999 });
+    expect(mockedStore.get('bs.customCategories.hh1')).toBeUndefined();
+    expect(mockedStore.get('bs.customCategories.hh2')).toBe('[{"name":"Keep","color":"#222"}]');
   });
 });

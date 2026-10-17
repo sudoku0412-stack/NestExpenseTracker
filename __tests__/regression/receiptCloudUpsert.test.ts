@@ -570,4 +570,83 @@ describe('saveReceipt / updateReceipt cloud stamp', () => {
     expect(receipt?.split).toBeUndefined();
     expect(receipt?.categoryTags).toEqual(['Dining']);
   });
+
+  it('omitting lineItems leaves existing items in place', async () => {
+    seed({ id: 'keep-items' });
+    mockLineItems.push({
+      id: 'li-old',
+      receipt_id: 'keep-items',
+      name: 'Milk',
+      amount: 4,
+      category: 'Groceries',
+      split_with: null,
+    });
+
+    await updateReceipt({
+      id: 'keep-items',
+      storeName: 'Renamed only',
+      date: '2026-03-15',
+      totalAmount: 80,
+      category: 'Groceries',
+      createdAt: '2026-03-15T00:00:00.000Z',
+      updatedAt: '2026-03-15T00:00:00.000Z',
+    });
+
+    expect(mockLineItems).toEqual([
+      expect.objectContaining({ id: 'li-old', name: 'Milk', receipt_id: 'keep-items' }),
+    ]);
+  });
+
+  it('an empty lineItems array wipes items (explicit replace, not omit)', async () => {
+    seed({ id: 'wipe-items' });
+    mockLineItems.push({
+      id: 'li-old',
+      receipt_id: 'wipe-items',
+      name: 'Milk',
+      amount: 4,
+      category: 'Groceries',
+      split_with: null,
+    });
+
+    await updateReceipt({
+      id: 'wipe-items',
+      storeName: 'Costco',
+      date: '2026-03-15',
+      totalAmount: 80,
+      category: 'Groceries',
+      lineItems: [],
+      createdAt: '2026-03-15T00:00:00.000Z',
+      updatedAt: '2026-03-15T00:00:00.000Z',
+    });
+
+    expect(mockLineItems.filter((i) => i.receipt_id === 'wipe-items')).toEqual([]);
+  });
+
+  it('a provided lineItems list replaces the previous items', async () => {
+    seed({ id: 'swap-items' });
+    mockLineItems.push({
+      id: 'li-old',
+      receipt_id: 'swap-items',
+      name: 'Milk',
+      amount: 4,
+      category: 'Groceries',
+      split_with: null,
+    });
+
+    await updateReceipt({
+      id: 'swap-items',
+      storeName: 'Costco',
+      date: '2026-03-15',
+      totalAmount: 12,
+      category: 'Groceries',
+      lineItems: [{ id: 'li-new', name: 'Kibble', amount: 12, category: 'Pets' }],
+      createdAt: '2026-03-15T00:00:00.000Z',
+      updatedAt: '2026-03-15T00:00:00.000Z',
+    });
+
+    expect(mockLineItems.filter((i) => i.receipt_id === 'swap-items')).toEqual([
+      expect.objectContaining({ id: 'li-new', name: 'Kibble', category: 'Pets', amount: 12 }),
+    ]);
+  });
 });
+
