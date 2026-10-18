@@ -34,7 +34,7 @@ interface Env {
   ANTHROPIC_API_KEY: string;
 }
 
-const VALID_CATEGORIES = [
+export const VALID_CATEGORIES = [
   'Groceries',
   'Electronics',
   'Dining',
@@ -65,12 +65,9 @@ export default {
     } catch {
       return json({ error: 'invalid JSON' }, 400);
     }
-    const name = (body.name ?? '').trim().slice(0, 200);
-    if (!name) return json({ error: 'name required' }, 400);
-
-    const categories: string[] = body.categories?.filter((c) =>
-      (VALID_CATEGORIES as readonly string[]).includes(c),
-    ) ?? [...VALID_CATEGORIES];
+    const sanitized = sanitizeClassifyBody(body);
+    if (!sanitized.ok) return json({ error: sanitized.error }, 400);
+    const { name, categories } = sanitized;
 
     const prompt =
       `You categorize a shopping receipt line item into one of these ` +
@@ -114,7 +111,19 @@ export default {
   },
 };
 
-function pickCategory(reply: string, categories: string[]): string {
+export function sanitizeClassifyBody(body: {
+  name?: string;
+  categories?: string[];
+}): { ok: true; name: string; categories: string[] } | { ok: false; error: string } {
+  const name = (body.name ?? '').trim().slice(0, 200);
+  if (!name) return { ok: false, error: 'name required' };
+  const categories: string[] = body.categories?.filter((c) =>
+    (VALID_CATEGORIES as readonly string[]).includes(c),
+  ) ?? [...VALID_CATEGORIES];
+  return { ok: true, name, categories };
+}
+
+export function pickCategory(reply: string, categories: string[]): string {
   // Prefer an exact-line match, then a case-insensitive substring match.
   const trimmed = reply.replace(/[^A-Za-z]+/g, ' ').trim();
   for (const c of categories) {

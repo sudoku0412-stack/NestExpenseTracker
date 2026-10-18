@@ -67,8 +67,7 @@ interface SendRequestBody {
 const RATE_LIMIT = { windowMs: 60_000, maxRequests: 5 };
 const ipCounts = new Map<string, { count: number; resetAt: number }>();
 
-function shouldRateLimit(ip: string): boolean {
-  const now = Date.now();
+export function shouldRateLimit(ip: string, now = Date.now()): boolean {
   const entry = ipCounts.get(ip);
   if (!entry || now > entry.resetAt) {
     ipCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT.windowMs });
@@ -76,6 +75,22 @@ function shouldRateLimit(ip: string): boolean {
   }
   entry.count++;
   return entry.count > RATE_LIMIT.maxRequests;
+}
+
+export function resetSmsRateLimitForTests(): void {
+  ipCounts.clear();
+}
+
+export function validateSmsInvite(
+  toRaw: string,
+  textRaw: string,
+): { ok: true; to: string; text: string } | { ok: false; error: string } {
+  const to = toRaw.trim();
+  const text = textRaw.trim();
+  if (!to.startsWith('+')) return { ok: false, error: 'to must be E.164' };
+  if (!text) return { ok: false, error: 'text required' };
+  if (text.length > 320) return { ok: false, error: 'text too long' };
+  return { ok: true, to, text };
 }
 
 export default {
@@ -108,13 +123,9 @@ export default {
     } catch {
       return json({ error: 'invalid JSON' }, 400);
     }
-    const to = (body.to ?? '').trim();
-    const text = (body.text ?? '').trim();
-    if (!to.startsWith('+')) return json({ error: 'to must be E.164' }, 400);
-    if (!text) return json({ error: 'text required' }, 400);
-    // An invite text is always short. Capping it stops this endpoint
-    // being repurposed into a general SMS blaster if APP_SECRET leaks.
-    if (text.length > 320) return json({ error: 'text too long' }, 400);
+    const invite = validateSmsInvite(body.to ?? '', body.text ?? '');
+    if (!invite.ok) return json({ error: invite.error }, 400);
+    const { to, text } = invite;
 
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`;
     const form = new URLSearchParams({ To: to, From: env.TWILIO_FROM_NUMBER, Body: text });
