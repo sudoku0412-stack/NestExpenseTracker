@@ -75,8 +75,8 @@ const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const RATE_LIMIT = { windowMs: 60_000, maxRequests: 10 };
 const ipCounts = new Map<string, { count: number; resetAt: number }>();
 
-function shouldRateLimit(ip: string): boolean {
-  const now = Date.now();
+/** Best-effort per-isolate cap. `now` is injectable so tests stay deterministic. */
+export function shouldRateLimit(ip: string, now = Date.now()): boolean {
   const entry = ipCounts.get(ip);
   if (!entry || now > entry.resetAt) {
     ipCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT.windowMs });
@@ -84,6 +84,10 @@ function shouldRateLimit(ip: string): boolean {
   }
   entry.count++;
   return entry.count > RATE_LIMIT.maxRequests;
+}
+
+export function resetParseRateLimitForTests(): void {
+  ipCounts.clear();
 }
 
 interface Env {
@@ -206,7 +210,7 @@ Output items:
  5. When you skip ANY line above, the REMAINING product names must stay paired with THEIR OWN row's price. Never shift names up to fill the gap a skipped line leaves in the price column.)
 `;
 
-function buildUserPrompt(rawText: string, examples: ParseRequestBody['examples']): string {
+export function buildUserPrompt(rawText: string, examples: ParseRequestBody['examples']): string {
   const truncated = rawText.length > 8000 ? rawText.slice(0, 8000) : rawText;
   let prefix = '';
   if (examples && examples.length > 0) {
@@ -279,10 +283,7 @@ export default {
 
     // Some Workers AI models wrap their JSON in markdown fences or
     // chat-style preamble; strip both before parsing.
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/```\s*$/i, '')
-      .trim();
+    const cleaned = stripAiJsonFence(raw);
 
     let parsed: unknown;
     try {
@@ -297,6 +298,14 @@ export default {
     return json(parsed);
   },
 };
+
+/** Strip a ``` / ```json wrapper so JSON.parse sees the object. */
+export function stripAiJsonFence(raw: string): string {
+  return raw
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+}
 
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
