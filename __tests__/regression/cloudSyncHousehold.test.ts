@@ -213,6 +213,8 @@ import {
   setEmailIndex,
   setPhoneIndex,
   subscribeToHouseholdBudgets,
+  subscribeToPendingInvite,
+  subscribeToPhoneInvite,
   syncCustomCategoriesToCloud,
   flushPendingCustomCategories,
   type PendingInvite,
@@ -340,6 +342,83 @@ describe('getPendingInviteForEmail', () => {
       createdAt: '2026-09-27T01:00:00.000Z',
       expiresAt: '2026-09-28T12:00:00.000Z',
     });
+  });
+});
+
+describe('subscribeToPendingInvite', () => {
+  const inviteDoc = {
+    email: 'new@example.com',
+    householdId: 'hh1',
+    householdName: 'Nest',
+    invitedByUid: 'owner',
+    invitedByName: 'Owner',
+    invitedByEmail: 'owner@example.com',
+    budgets: null,
+    createdAt: { toDate: () => new Date('2026-09-27T01:00:00.000Z') },
+    expiresAt: { toDate: () => new Date('2026-09-28T12:00:00.000Z') },
+  };
+
+  it('returns null when email is empty', () => {
+    expect(subscribeToPendingInvite('', jest.fn())).toBeNull();
+    expect(lastSnapshotHandler).toBeUndefined();
+  });
+
+  it('watches the lowercased email key and skips missing or expired docs', async () => {
+    const onInvite = jest.fn();
+    subscribeToPendingInvite('  New@Example.com ', onInvite);
+    expect(lastSnapshotHandler).toBeDefined();
+
+    await lastSnapshotHandler!({ exists: false, data: () => ({}) });
+    expect(onInvite).not.toHaveBeenCalled();
+
+    seed('invites/new@example.com', {
+      ...inviteDoc,
+      expiresAt: { toDate: () => new Date('2026-09-26T00:00:00.000Z') },
+    });
+    await lastSnapshotHandler!({
+      exists: true,
+      data: () => mockStore.get('invites/new@example.com') ?? {},
+    });
+    expect(onInvite).not.toHaveBeenCalled();
+  });
+
+  it('delivers a still-valid invite (the live path AuthContext uses while already signed in)', async () => {
+    seed('invites/new@example.com', inviteDoc);
+    const onInvite = jest.fn();
+    subscribeToPendingInvite('New@Example.com', onInvite);
+
+    await lastSnapshotHandler!({
+      exists: true,
+      data: () => mockStore.get('invites/new@example.com') ?? {},
+    });
+
+    expect(onInvite).toHaveBeenCalledTimes(1);
+    expect(onInvite).toHaveBeenCalledWith({
+      email: 'new@example.com',
+      householdId: 'hh1',
+      householdName: 'Nest',
+      invitedByUid: 'owner',
+      invitedByName: 'Owner',
+      invitedByEmail: 'owner@example.com',
+      budgets: null,
+      createdAt: '2026-09-27T01:00:00.000Z',
+      expiresAt: '2026-09-28T12:00:00.000Z',
+    });
+  });
+});
+
+describe('subscribeToPhoneInvite', () => {
+  it('returns null when the E.164 number is empty', () => {
+    expect(subscribeToPhoneInvite('u1', '', jest.fn())).toBeNull();
+  });
+
+  it('does not auto-join when the phoneInvites doc is missing', async () => {
+    seed('users/u1', { householdId: 'hh-solo' });
+    const onJoined = jest.fn();
+    subscribeToPhoneInvite('u1', '+14165550000', onJoined);
+    await lastSnapshotHandler!({ exists: false, data: () => ({}) });
+    expect(onJoined).not.toHaveBeenCalled();
+    expect(mockStore.get('users/u1')).toMatchObject({ householdId: 'hh-solo' });
   });
 });
 
