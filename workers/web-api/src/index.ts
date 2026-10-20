@@ -8,6 +8,14 @@
  * here against Google's public keys, so the uid cannot be spoofed.
  */
 
+import {
+  b64urlToBytes,
+  bearerToken,
+  corsHeaders,
+  firebaseUidFromClaims,
+  readJwtHeaderAndClaims,
+} from './authn';
+
 interface Env {
   AI: { run: (model: string, input: unknown) => Promise<{ response?: string }> };
   FIREBASE_PROJECT_ID: string;
@@ -23,12 +31,6 @@ const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 type Jwk = JsonWebKey & { kid: string };
 let jwksCache: { keys: Jwk[]; at: number } | null = null;
 
-const b64urlToBytes = (s: string): Uint8Array => {
-  const b = atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '='));
-  return Uint8Array.from(b, (c) => c.charCodeAt(0));
-};
-const decodeJson = (s: string) => JSON.parse(new TextDecoder().decode(b64urlToBytes(s)));
-
 async function getKeys(): Promise<Jwk[]> {
   if (jwksCache && Date.now() - jwksCache.at < 60 * 60 * 1000) return jwksCache.keys;
   const res = await fetch(JWKS_URL);
@@ -41,19 +43,25 @@ async function getKeys(): Promise<Jwk[]> {
 /** Returns the Firebase uid for a valid ID token, otherwise null. */
 async function verifyIdToken(token: string, projectId: string): Promise<string | null> {
   try {
-    const [h, p, sig] = token.split('.');
-    if (!h || !p || !sig) return null;
-    const header = decodeJson(h);
-    const claims = decodeJson(p);
-    if (header.alg !== 'RS256') return null;
-    const now = Math.floor(Date.now() / 1000);
-    if (claims.aud !== projectId || claims.iss !== `https://securetoken.google.com/${projectId}`) return null;
-    if (typeof claims.exp !== 'number' || claims.exp < now || typeof claims.sub !== 'string' || !claims.sub) return null;
-    const jwk = (await getKeys()).find((k) => k.kid === header.kid);
+    const parsed = readJwtHeaderAndClaims(token);
+    if (!parsed) return null;
+    const uid = firebaseUidFromClaims(
+      parsed.header,
+      parsed.claims,
+      projectId,
+      Math.floor(Date.now() / 1000),
+    );
+    if (!uid) return null;
+    const jwk = (await getKeys()).find((k) => k.kid === parsed.header.kid);
     if (!jwk) return null;
     const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
-    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlToBytes(sig), new TextEncoder().encode(`${h}.${p}`));
-    return ok ? (claims.sub as string) : null;
+    const ok = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      key,
+      b64urlToBytes(parsed.signature),
+      new TextEncoder().encode(parsed.signingInput),
+    );
+    return ok ? uid : null;
   } catch {
     return null;
   }
@@ -79,14 +87,7 @@ const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSO
 Amounts are plain numbers in the receipt's own currency. Use a negative amount for discounts. If a value is unreadable use null.`;
 
 function cors(req: Request, env: Env): Record<string, string> {
-  const origin = req.headers.get('Origin') ?? '';
-  const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
-  return {
-    'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    Vary: 'Origin',
-  };
+  return corsHeaders(req.headers.get('Origin') ?? '', env.ALLOWED_ORIGINS);
 }
 
 const json = (data: unknown, status: number, headers: Record<string, string>) =>
@@ -98,7 +99,7 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
     const url = new URL(req.url);
-    const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const bearer = bearerToken(req.headers.get('Authorization'));
     const uid = bearer ? await verifyIdToken(bearer, env.FIREBASE_PROJECT_ID) : null;
     if (!uid) return json({ error: 'unauthorized' }, 401, headers);
 
