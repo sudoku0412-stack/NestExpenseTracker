@@ -58,4 +58,22 @@ describe('deleteAllRowsForHousehold', () => {
     expect(incomeDelete).toBeDefined();
     expect(incomeDelete!.params).toEqual(['hh-gone']);
   });
+
+  it('wipes receipts, line items and settlements for that household only', async () => {
+    await deleteAllRowsForHousehold('hh-gone');
+    expect(runs.some((r) => /DELETE FROM receipts WHERE household_id/i.test(r.sql) && r.params[0] === 'hh-gone')).toBe(
+      true,
+    );
+    expect(runs.some((r) => /DELETE FROM settlements WHERE household_id/i.test(r.sql) && r.params[0] === 'hh-gone')).toBe(
+      true,
+    );
+    expect(runs.some((r) => /DELETE FROM line_items/i.test(r.sql) && r.params[0] === 'hh-gone')).toBe(true);
+  });
+
+  it('does not delete personal investment holdings (they are user-scoped, not household)', async () => {
+    await deleteAllRowsForHousehold('hh-gone');
+    expect(runs.some((r) => /investment_accounts/i.test(r.sql))).toBe(false);
+    expect(runs.some((r) => /investment_snapshots/i.test(r.sql))).toBe(false);
+    expect(runs.some((r) => /DELETE FROM profiles/i.test(r.sql))).toBe(false);
+  });
 });

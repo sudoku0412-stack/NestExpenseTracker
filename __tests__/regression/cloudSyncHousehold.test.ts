@@ -697,6 +697,25 @@ describe('household lifecycle', () => {
     });
   });
 
+  it('leaveHousehold does not delete personal investment holdings', async () => {
+    seed('households/hh-leave', { ownerUid: 'owner', memberUids: ['owner', 'u1'], memberCount: 2 });
+    seed('users/u1/memberships/hh-leave', { householdId: 'hh-leave' });
+    seed('users/u1/memberships/hh-keep', { householdId: 'hh-keep', isDefault: true, role: 'member' });
+    seed('households/hh-keep', { name: 'Keep', memberCount: 1 });
+    seed('users/u1/investmentAccounts/a1', { name: 'TFSA', kind: 'etf' });
+    seed('users/u1/investmentSnapshots/s1', { accountId: 'a1', valueUsd: 1200 });
+
+    await leaveHousehold({
+      uid: 'u1',
+      householdId: 'hh-leave',
+      email: 'u1@example.com',
+      displayName: 'You',
+    });
+
+    expect(mockStore.get('users/u1/investmentAccounts/a1')).toMatchObject({ name: 'TFSA' });
+    expect(mockStore.get('users/u1/investmentSnapshots/s1')).toMatchObject({ accountId: 'a1' });
+  });
+
   it('deleteHousehold is owner-only', async () => {
     seed('households/hh1', { ownerUid: 'owner', memberUids: ['owner', 'u1'] });
     await expect(deleteHousehold({ householdId: 'hh1', uid: 'u1' })).resolves.toEqual({
@@ -709,6 +728,29 @@ describe('household lifecycle', () => {
       ok: false,
       reason: 'household no longer exists',
     });
+  });
+
+  it('deleteHousehold removes household collections but not the owner investment holdings', async () => {
+    seed('households/hh1', { ownerUid: 'owner', memberUids: ['owner'] });
+    seed('households/hh1/receipts/r1', { storeName: 'Costco' });
+    seed('households/hh1/incomes/i1', { sourceName: 'Pay' });
+    seed('households/hh1/savingsGoals/g1', { name: 'Holiday' });
+    seed('households/hh1/settlements/s1', { amountUsd: 10 });
+    seed('users/owner/memberships/hh1', { householdId: 'hh1' });
+    seed('users/owner/investmentAccounts/a1', { name: 'RRSP' });
+    seed('users/owner/investmentSnapshots/s1', { accountId: 'a1' });
+
+    await expect(deleteHousehold({ householdId: 'hh1', uid: 'owner' })).resolves.toEqual({
+      ok: true,
+      receiptsDeleted: 1,
+    });
+    expect(mockStore.has('households/hh1')).toBe(false);
+    expect(mockStore.has('households/hh1/receipts/r1')).toBe(false);
+    expect(mockStore.has('households/hh1/incomes/i1')).toBe(false);
+    expect(mockStore.has('households/hh1/savingsGoals/g1')).toBe(false);
+    expect(mockStore.has('households/hh1/settlements/s1')).toBe(false);
+    expect(mockStore.get('users/owner/investmentAccounts/a1')).toMatchObject({ name: 'RRSP' });
+    expect(mockStore.get('users/owner/investmentSnapshots/s1')).toMatchObject({ accountId: 'a1' });
   });
 
   it('persistActiveHouseholdId merge-writes householdId', async () => {
