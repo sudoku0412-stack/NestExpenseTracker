@@ -104,6 +104,20 @@ describe('buildHtmlForPreview', () => {
     expect(html).toContain('₹833');
   });
 
+  it('prints the local civil day for an evening ISO timestamp, not the UTC prefix', () => {
+    const iso = new Date(2026, 4, 11, 20, 0, 0).toISOString();
+    const html = buildHtmlForPreview({
+      receipts: [receipt({ date: iso, storeName: 'Night Cafe' })],
+      startLabel: 'A',
+      endLabel: 'B',
+    });
+    expect(html).toContain('2026-05-11');
+    const utcPrefix = iso.slice(0, 10);
+    if (utcPrefix !== '2026-05-11') {
+      expect(html).not.toContain(`>${utcPrefix}<`);
+    }
+  });
+
   it('handles an empty receipts array gracefully', () => {
     const html = buildHtmlForPreview({ receipts: [], startLabel: 'A', endLabel: 'B' });
     expect(html).toContain('No receipts in this range.');

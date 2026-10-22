@@ -1,3 +1,4 @@
+import { formatLocalDate } from './calendarDate';
 import { categoryLabel } from './categoryLabel';
 import { tr } from './i18n';
 import * as Notifications from 'expo-notifications';
@@ -108,7 +109,7 @@ function statusFor(spent: number, limit: number): 'onTrack' | 'watch' | 'over' {
 }
 
 function todayYmd(): string {
-  return new Date().toISOString().slice(0, 10);
+  return formatLocalDate(new Date());
 }
 
 /** Guards checkBudgetsAndNotify against concurrent overlapping calls

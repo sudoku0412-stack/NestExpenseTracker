@@ -30,6 +30,11 @@ describe('calendar dates', () => {
     expect(isInCalendarMonth(iso, 2026, 3)).toBe(true);
   });
 
+  it('puts a local-evening ISO timestamp on that local calendar day, not the next UTC day', () => {
+    const iso = new Date(2026, 2, 1, 20, 0, 0).toISOString();
+    expect(calendarDateKey(iso)).toBe('2026-03-01');
+  });
+
   it('binds date-only start/end plus local-midnight ISO bounds for SQL month filters', () => {
     const params = calendarMonthSqlParams(2026, 3);
     expect(params[0]).toBe('2026-03-01');

@@ -319,10 +319,20 @@ export async function parseReceiptWithGemini(
  * Tolerant of small drift (numeric strings, missing fields, unknown
  * categories — all coerced or fallbacked).
  */
+/** Models sometimes wrap JSON in markdown fences or a short preamble. */
+export function coerceJsonText(jsonText: string): string {
+  const trimmed = jsonText.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  if (trimmed.startsWith('{')) return trimmed;
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  if (start >= 0 && end > start) return trimmed.slice(start, end + 1);
+  return trimmed;
+}
+
 export function parseGeminiPayload(jsonText: string): GeminiParseResult {
   let raw: unknown;
   try {
-    raw = JSON.parse(jsonText);
+    raw = JSON.parse(coerceJsonText(jsonText));
   } catch (e) {
     return {
       ok: false,

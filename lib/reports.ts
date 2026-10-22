@@ -1,5 +1,5 @@
 import { Category, Receipt } from '../types';
-import { isInCalendarRange } from './calendarDate';
+import { calendarDateKey, isInCalendarRange } from './calendarDate';
 import { CurrencyCode, convertFromUsd, currencyDecimals } from './currency';
 
 /**
@@ -698,7 +698,7 @@ export function receiptsToCsv(receipts: Receipt[], currency: CurrencyCode = 'USD
   // Sort chronologically so the CSV reads top-to-bottom oldest-to-newest.
   const sorted = [...receipts].sort((a, b) => a.date.localeCompare(b.date));
   for (const r of sorted) {
-    const dateOnly = r.date.slice(0, 10);
+    const dateOnly = calendarDateKey(r.date) ?? r.date.slice(0, 10);
     const tags = (r.categoryTags ?? [r.category]).join('; ');
     const base = [
       dateOnly,

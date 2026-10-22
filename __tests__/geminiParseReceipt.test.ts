@@ -1,4 +1,4 @@
-import { parseGeminiPayload, formatExamples } from '../lib/geminiParseReceipt';
+import { coerceJsonText, parseGeminiPayload, formatExamples } from '../lib/geminiParseReceipt';
 
 describe('parseGeminiPayload — validating Gemini JSON receipt response', () => {
   it('parses a valid full receipt response', () => {
@@ -133,6 +133,26 @@ describe('parseGeminiPayload — validating Gemini JSON receipt response', () =>
   it('returns ok=false on invalid JSON', () => {
     const result = parseGeminiPayload('not valid json{');
     expect(result.ok).toBe(false);
+  });
+
+  it('parses JSON wrapped in a markdown fence or a short preamble', () => {
+    const inner = JSON.stringify({
+      store: 'Walmart',
+      total: 12.5,
+      items: [{ name: 'Milk', amount: 12.5, category: 'Groceries' }],
+    });
+    const fenced = parseGeminiPayload('```json\n' + inner + '\n```');
+    expect(fenced.ok).toBe(true);
+    if (fenced.ok) expect(fenced.receipt.storeName).toBe('Walmart');
+
+    const preamble = parseGeminiPayload('Here is the receipt:\n' + inner);
+    expect(preamble.ok).toBe(true);
+    if (preamble.ok) expect(preamble.receipt.totalAmount).toBe(12.5);
+  });
+
+  it('coerceJsonText strips fences and slices to the object', () => {
+    expect(coerceJsonText('```json\n{"a":1}\n```')).toBe('{"a":1}');
+    expect(coerceJsonText('note {"a":1} trailing')).toBe('{"a":1}');
   });
 
   it('returns ok=false on non-object reply', () => {

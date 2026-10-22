@@ -101,26 +101,14 @@ describe('hrefForAuthGuard — sign-out from Settings', () => {
   });
 
   it('does not treat sticky voluntary routes as sticky when signed out', () => {
-    // Settings / incomes / edit are sticky only for the (tabs) target.
-    // After sign-out, pickTarget is auth — the user must still leave.
-    expect(
-      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'incomes' }),
-    ).toBe('/auth');
-    expect(
-      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'edit' }),
-    ).toBe('/auth');
-    expect(
-      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'review' }),
-    ).toBe('/auth');
-    expect(
-      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'investments' }),
-    ).toBe('/auth');
-    expect(
-      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'investment' }),
-    ).toBe('/auth');
-    expect(
-      hrefForAuthGuard({ user: null, onboardingSeen: true, current: 'budgets' }),
-    ).toBe('/auth');
+    // Sticky only applies when pickTarget is (tabs). After sign-out the
+    // user must leave every voluntary screen, including ones added later
+    // (scan-paystub, savings-goals, paywall, households, …).
+    for (const current of STICKY_VOLUNTARY) {
+      expect(
+        hrefForAuthGuard({ user: null, onboardingSeen: true, current }),
+      ).toBe('/auth');
+    }
   });
 
   it('leaves a signed-in user alone when useSegments() reports an empty current', () => {
@@ -135,7 +123,7 @@ describe('hrefForAuthGuard — sign-out from Settings', () => {
 });
 
 describe('hrefForAuthGuard — pushed screens stay put for signed-in users', () => {
-  it.each(['review', 'investments', 'investment', 'savings-goals', 'recurring', 'budgets'])(
+  it.each([...STICKY_VOLUNTARY])(
     'does not bounce %s back to Home',
     (current) => {
       expect(hrefForAuthGuard({ user: { uid: 'u' }, onboardingSeen: true, current })).toBeNull();

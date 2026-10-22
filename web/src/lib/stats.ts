@@ -1,4 +1,4 @@
-import { calendarDateKey, isInCalendarMonth } from '@app/lib/calendarDate';
+import { calendarDateKey, formatLocalDate, isInCalendarMonth } from '@app/lib/calendarDate';
 import type { Income, Receipt } from '@app/types';
 
 export const RECURRING_BUDGET_KEY = 'Recurring';
@@ -85,7 +85,7 @@ export function topStores(receipts: Receipt[], limit = 6) {
 
 /** Recurring templates (the rows that still carry a schedule), soonest first. */
 export function upcomingRecurring(receipts: Receipt[], today = new Date()) {
-  const todayKey = today.toISOString().slice(0, 10);
+  const todayKey = formatLocalDate(today);
   return receipts
     .filter((r) => r.recurring && r.recurring.endDate >= todayKey)
     .map((r) => ({ receipt: r, due: r.recurring!.nextDueDate, frequency: r.recurring!.frequency }))

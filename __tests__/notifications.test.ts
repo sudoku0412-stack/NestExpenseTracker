@@ -182,7 +182,9 @@ describe('checkBudgetsAndNotify', () => {
   });
 
   it('no-ops when already alerted today', async () => {
-    mockGetLastBudgetAlertDate.mockResolvedValue(new Date().toISOString().slice(0, 10));
+    const now = new Date();
+    const civilToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    mockGetLastBudgetAlertDate.mockResolvedValue(civilToday);
     await checkBudgetsAndNotify();
     expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
   });
