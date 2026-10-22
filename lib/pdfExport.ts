@@ -1,5 +1,6 @@
 import { tr, getActiveLanguage } from './i18n';
 import { categoryLabel } from './categoryLabel';
+import { calendarDateKey } from './calendarDate';
 import { intlLocale } from './dateLocale';
 import { Income, Receipt } from '../types';
 import { CurrencyCode, CURRENCY_SYMBOLS, convertFromUsd, currencyDecimals, currencyPrefix } from './currency';
@@ -187,7 +188,7 @@ function buildHtml(args: {
 
   const receiptCards = sorted
     .map((r) => {
-      const dateOnly = r.date.slice(0, 10);
+      const dateOnly = calendarDateKey(r.date) ?? r.date.slice(0, 10);
       const tags = (r.categoryTags ?? [r.category]).filter(Boolean);
       const tagPills = tags
         .map((t) => {

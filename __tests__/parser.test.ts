@@ -1,4 +1,4 @@
-import { parseReceiptText, mergeDiscountLines } from '../lib/parser';
+import { parseReceiptText, mergeDiscountLines, parseYmdLocal } from '../lib/parser';
 import { LineItem } from '../types';
 
 const li = (over: Partial<LineItem>): LineItem => ({
@@ -1128,5 +1128,34 @@ describe('parseReceiptText - negative price formats', () => {
     const gift = r.lineItems.find((it) => /gift\s+set/i.test(it.name));
     expect(mavis?.amount).toBe(46.99);
     expect(gift?.amount).toBe(18);
+  });
+});
+
+describe('parseYmdLocal', () => {
+  it('keeps a date-only string on that civil day (not UTC midnight)', () => {
+    const d = parseYmdLocal('2025-08-31');
+    expect(d).not.toBeNull();
+    expect(d!.getFullYear()).toBe(2025);
+    expect(d!.getMonth()).toBe(7);
+    expect(d!.getDate()).toBe(31);
+  });
+
+  it('uses the Y-M-D prefix of an ISO timestamp, ignoring the clock', () => {
+    const d = parseYmdLocal('2025-08-31T04:00:00.000Z');
+    expect(d!.getFullYear()).toBe(2025);
+    expect(d!.getMonth()).toBe(7);
+    expect(d!.getDate()).toBe(31);
+  });
+
+  it('returns null for empty, slash-style, or garbage strings', () => {
+    expect(parseYmdLocal('')).toBeNull();
+    expect(parseYmdLocal('08/31/2025')).toBeNull();
+    expect(parseYmdLocal('not-a-date')).toBeNull();
+  });
+
+  it('accepts a leap day', () => {
+    const d = parseYmdLocal('2024-02-29');
+    expect(d!.getMonth()).toBe(1);
+    expect(d!.getDate()).toBe(29);
   });
 });

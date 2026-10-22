@@ -586,4 +586,16 @@ describe('receiptsToCsv', () => {
     expect(lines[1]).toContain('Diner');
     expect(lines[1]).toContain('Dining');
   });
+
+  it('exports the local civil day, not the UTC prefix of an evening timestamp', () => {
+    const iso = new Date(2026, 4, 10, 20, 0, 0).toISOString();
+    const csv = receiptsToCsv([
+      baseReceipt({ date: iso, storeName: 'Night Shop', totalAmount: 8, category: 'Dining' }),
+    ]);
+    expect(csv).toContain('2026-05-10');
+    const utcPrefix = iso.slice(0, 10);
+    if (utcPrefix !== '2026-05-10') {
+      expect(csv.split('\n')[1].startsWith(utcPrefix + ',')).toBe(false);
+    }
+  });
 });

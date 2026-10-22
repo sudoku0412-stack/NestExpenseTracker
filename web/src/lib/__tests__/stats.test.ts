@@ -55,4 +55,15 @@ describe('trend and stores', () => {
     ], new Date('2026-04-15T12:00:00Z'));
     expect(out.map((x) => x.receipt.id)).toEqual(['soon', 'late']);
   });
+  it('keeps a template that ends on the local civil day even when UTC has already rolled', () => {
+    const localEvening = new Date(2026, 3, 15, 20, 0, 0);
+    const y = localEvening.getFullYear();
+    const m = String(localEvening.getMonth() + 1).padStart(2, '0');
+    const d = String(localEvening.getDate()).padStart(2, '0');
+    const civil = `${y}-${m}-${d}`;
+    const out = upcomingRecurring([
+      r({ id: 'ends-today', recurring: { frequency: 'weekly', nextDueDate: '2026-04-20', endDate: civil } }),
+    ], localEvening);
+    expect(out.map((x) => x.receipt.id)).toEqual(['ends-today']);
+  });
 });
