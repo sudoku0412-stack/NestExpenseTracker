@@ -186,6 +186,23 @@ describe('rowToIncome via income reads', () => {
     expect(await getIncomeById('theirs')).toBeNull();
   });
 
+  it('still lists this user\'s NULL-household rows after a household is active (bootstrap backfill)', async () => {
+    seed({ id: 'legacy', household_id: null, source_name: 'Pre-cloud paycheck', date: '2026-01-01' });
+    seed({ id: 'mine', household_id: 'hh1', source_name: 'Mine', date: '2026-03-01' });
+    seed({ id: 'theirs', household_id: 'hh-other', source_name: 'Theirs', date: '2026-04-01' });
+
+    const all = await getAllIncomes();
+    expect(all.map((i) => i.id)).toEqual(['mine', 'legacy']);
+    expect(await getIncomeById('legacy')).toMatchObject({
+      id: 'legacy',
+      sourceName: 'Pre-cloud paycheck',
+      householdId: undefined,
+    });
+    expect(await searchIncomes('paycheck')).toEqual([
+      expect.objectContaining({ id: 'legacy' }),
+    ]);
+  });
+
   it('searchIncomes matches source, category, or notes case-insensitively', async () => {
     seed({ id: 's1', source_name: 'Acme payroll', category: 'Salary', notes: null, date: '2026-03-02' });
     seed({ id: 's2', source_name: 'Uber', category: 'Side hustle', notes: 'weekend', date: '2026-03-01' });
