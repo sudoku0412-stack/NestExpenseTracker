@@ -9,6 +9,7 @@ type DocSnap = { id: string; exists: boolean; data: () => Record<string, unknown
 const mockStore = new Map<string, Record<string, unknown>>();
 const mockDeletedPaths: string[] = [];
 const mockBatchCommits: string[][] = [];
+const throwOnUpdate = new Set<string>();
 
 function makeRef(path: string) {
   return {
@@ -25,7 +26,27 @@ function makeRef(path: string) {
       mockStore.set(path, data);
     }),
     update: jest.fn(async (data: Record<string, unknown>) => {
-      mockStore.set(path, { ...(mockStore.get(path) ?? {}), ...data });
+      if (throwOnUpdate.has(path)) {
+        throwOnUpdate.delete(path);
+        throw new Error('permission-denied');
+      }
+      const current = { ...(mockStore.get(path) ?? {}) };
+      for (const [key, value] of Object.entries(data)) {
+        if (value && typeof value === 'object' && '__op' in (value as object)) {
+          const op = value as { __op: string; v?: string; n?: number };
+          if (op.__op === 'arrayRemove') {
+            const arr = Array.isArray(current[key]) ? [...(current[key] as string[])] : [];
+            current[key] = arr.filter((item) => item !== op.v);
+          } else if (op.__op === 'increment') {
+            current[key] = Number(current[key] ?? 0) + (op.n ?? 0);
+          } else if (op.__op === 'serverTimestamp') {
+            current[key] = 'server-ts';
+          }
+        } else {
+          current[key] = value;
+        }
+      }
+      mockStore.set(path, current);
     }),
     delete: jest.fn(async () => {
       mockStore.delete(path);
@@ -117,6 +138,7 @@ beforeEach(() => {
   mockStore.clear();
   mockDeletedPaths.length = 0;
   mockBatchCommits.length = 0;
+  throwOnUpdate.clear();
 });
 
 describe('deleteHousehold', () => {
@@ -169,5 +191,57 @@ describe('deleteCloudUserData', () => {
     expect(mockStore.has('households/h1/incomes/i1')).toBe(true);
     expect(mockStore.has('households/h1/savingsGoals/g1')).toBe(true);
     expect(mockStore.has('households/h1')).toBe(true);
+  });
+
+  it('removes the deleted uid from a shared household without wiping shared data', async () => {
+    seedHousehold('h1', 'owner', ['owner', 'u1']);
+    seedDoc('households/h1/receipts/r1', { merchant: 'Shared cafe' });
+    seedDoc('households/h1/incomes/i1', { sourceName: 'Shared paycheck' });
+    seedDoc('households/h1/savingsGoals/g1', { name: 'Shared envelope' });
+    seedDoc('users/u1', { householdId: 'h1' });
+    seedDoc('users/owner', { householdId: 'h1' });
+    seedDoc('users/owner/investmentAccounts/a1', { name: 'Owner 401k' });
+    seedDoc('users/u1/investmentAccounts/a2', { name: 'Leaver brokerage' });
+
+    const res = await deleteCloudUserData({ uid: 'u1', householdId: 'h1', email: null });
+
+    expect(res).toEqual({ receiptsDeleted: 0, soloHouseholdDeleted: false });
+    expect(mockStore.get('households/h1')).toMatchObject({
+      ownerUid: 'owner',
+      memberUids: ['owner'],
+      memberCount: 1,
+    });
+    expect(mockStore.has('households/h1/receipts/r1')).toBe(true);
+    expect(mockStore.has('households/h1/incomes/i1')).toBe(true);
+    expect(mockStore.has('households/h1/savingsGoals/g1')).toBe(true);
+    expect(mockStore.has('users/u1')).toBe(false);
+    expect(mockStore.has('users/u1/investmentAccounts/a2')).toBe(false);
+    expect(mockStore.has('users/owner')).toBe(true);
+    expect(mockStore.has('users/owner/investmentAccounts/a1')).toBe(true);
+  });
+
+  it('still deletes the user doc when the household is already gone', async () => {
+    seedDoc('users/u1', { householdId: 'missing' });
+
+    const res = await deleteCloudUserData({ uid: 'u1', householdId: 'missing', email: null });
+
+    expect(res.soloHouseholdDeleted).toBe(false);
+    expect(mockStore.has('users/u1')).toBe(false);
+  });
+
+  it('still deletes the user doc when the shared membership update fails', async () => {
+    seedHousehold('h1', 'owner', ['owner', 'u1']);
+    seedDoc('users/u1', { householdId: 'h1' });
+    throwOnUpdate.add('households/h1');
+
+    const res = await deleteCloudUserData({ uid: 'u1', householdId: 'h1', email: null });
+
+    expect(res.soloHouseholdDeleted).toBe(false);
+    expect(mockStore.has('users/u1')).toBe(false);
+    expect(mockStore.has('households/h1')).toBe(true);
+    expect(mockStore.get('households/h1')).toMatchObject({
+      memberUids: ['owner', 'u1'],
+      memberCount: 2,
+    });
   });
 });
