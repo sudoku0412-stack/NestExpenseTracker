@@ -306,6 +306,33 @@ describe('checkBudgetsAndNotify', () => {
     // if double-counted it would be 100/100 = over.
     expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
   });
+
+  it('a 0-limit category is ignored even when there is spend', async () => {
+    mockGetCategoryBudgets.mockResolvedValue({ Groceries: 0, Dining: 100 });
+    mockGetReceiptsByMonth.mockResolvedValue([
+      receipt({ id: 'g', totalAmount: 500, category: 'Groceries' }),
+      receipt({ id: 'd', totalAmount: 10, category: 'Dining' }),
+    ]);
+    await checkBudgetsAndNotify();
+    expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('overlapping calls for the same household fire only one notification', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    mockGetBudgetAlertsEnabled.mockReturnValue(gate.then(() => true));
+    mockGetReceiptsByMonth.mockResolvedValue([receipt({ totalAmount: 95, category: 'Groceries' })]);
+
+    const first = checkBudgetsAndNotify();
+    const second = checkBudgetsAndNotify();
+    release();
+    await Promise.all([first, second]);
+
+    expect(mockScheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    expect(mockSetLastBudgetAlertDate).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('notifyHouseholdOfBudgetStatus', () => {
