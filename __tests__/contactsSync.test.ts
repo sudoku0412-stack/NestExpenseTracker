@@ -123,4 +123,57 @@ describe('matchContacts', () => {
     expect(result.matched).toHaveLength(0);
     expect(result.unmatched).toHaveLength(4);
   });
+
+  it('no-ops without lookups on an empty contact list', async () => {
+    await expect(matchContacts([])).resolves.toEqual({ matched: [], unmatched: [] });
+    expect(mockLookupUserByPhone).not.toHaveBeenCalled();
+    expect(mockLookupUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it('caps concurrent phone lookups so a large book does not burst Firestore', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    mockLookupUserByPhone.mockImplementation(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      return null;
+    });
+    mockLookupUserByEmail.mockResolvedValue(null);
+
+    const many: DeviceContact[] = Array.from({ length: 45 }, (_, i) => ({
+      id: String(i),
+      name: `C${i}`,
+      phones: [`+1416555${String(i).padStart(4, '0')}`],
+      emails: [],
+    }));
+    await matchContacts(many);
+
+    expect(mockLookupUserByPhone).toHaveBeenCalledTimes(45);
+    expect(maxInFlight).toBeGreaterThan(1);
+    expect(maxInFlight).toBeLessThanOrEqual(20);
+  });
+
+  it('looks up unique phones and emails in parallel, not one collection then the other', async () => {
+    let phoneStarted = false;
+    let emailStartedWhilePhoneInFlight = false;
+    mockLookupUserByPhone.mockImplementation(async () => {
+      phoneStarted = true;
+      await Promise.resolve();
+      return null;
+    });
+    mockLookupUserByEmail.mockImplementation(async () => {
+      if (phoneStarted) emailStartedWhilePhoneInFlight = true;
+      return null;
+    });
+
+    await matchContacts([
+      { id: '1', name: 'Both', phones: ['+14165550000'], emails: ['a@example.com'] },
+    ]);
+
+    expect(emailStartedWhilePhoneInFlight).toBe(true);
+    expect(mockLookupUserByPhone).toHaveBeenCalledTimes(1);
+    expect(mockLookupUserByEmail).toHaveBeenCalledTimes(1);
+  });
 });

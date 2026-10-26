@@ -278,3 +278,30 @@ describe('concurrent add and cloud snapshot (race fix)', () => {
     await expect(addCustomCategory('h1', 'Pets')).resolves.toMatchObject({ ok: true });
   });
 });
+
+describe('household isolation', () => {
+  it('concurrent adds on different households never mix names', async () => {
+    await Promise.all([
+      addCustomCategory('h1', 'Pets'),
+      addCustomCategory('h2', 'Hobbies'),
+    ]);
+    expect((await getCustomCategories('h1')).map((c) => c.name)).toEqual(['Pets']);
+    expect((await getCustomCategories('h2')).map((c) => c.name)).toEqual(['Hobbies']);
+    expect((await getPendingCustomCategoryChanges('h1')).add.map((c) => c.name)).toEqual(['Pets']);
+    expect((await getPendingCustomCategoryChanges('h2')).add.map((c) => c.name)).toEqual(['Hobbies']);
+  });
+
+  it('does not apply a pending add once the cloud list is already at the limit', async () => {
+    const full = Array.from({ length: MAX_CUSTOM_CATEGORIES }, (_, i) => ({
+      name: `Cloud${i}`,
+      color: '#000',
+    }));
+    await applyCustomCategories('h1', full.slice(0, MAX_CUSTOM_CATEGORIES - 1));
+    await addCustomCategory('h1', 'Overflow');
+    const next = await applyCustomCategories('h1', full);
+    expect(next).toHaveLength(MAX_CUSTOM_CATEGORIES);
+    expect(next.map((c) => c.name)).not.toContain('Overflow');
+    // still pending so it can land if a slot opens later
+    expect((await getPendingCustomCategoryChanges('h1')).add.map((c) => c.name)).toEqual(['Overflow']);
+  });
+});
