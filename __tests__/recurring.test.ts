@@ -399,4 +399,55 @@ describe('processRecurringIncomes', () => {
     expect(updated.id).toBe(t.id);
     expect(updated.recurring?.nextDueDate).toBe('2026-01-01');
   });
+
+  it('generated paychecks keep the template earner/amount and never enter the receipt review queue', async () => {
+    mockGetAllIncomes.mockResolvedValue([
+      template({
+        recurring: { frequency: 'monthly', nextDueDate: '2025-12-01', endDate: '2025-12-01' },
+      }),
+    ]);
+    await processRecurringIncomes();
+    const occurrence = mockSaveIncome.mock.calls[0][0] as Income;
+    expect(occurrence.earnedBy).toBe('uid-a');
+    expect(occurrence.amountUsd).toBe(2000);
+    expect(occurrence.category).toBe('Salary');
+    expect(occurrence.sourceName).toBe('Acme payroll');
+    expect(mockAddToReviewQueue).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a generated occurrence as a new template', async () => {
+    mockGetAllIncomes.mockResolvedValue([
+      template({ id: 'occ-1', isRecurringOccurrence: true }),
+    ]);
+    const created = await processRecurringIncomes();
+    expect(created).toBe(0);
+    expect(mockSaveIncome).not.toHaveBeenCalled();
+  });
+
+  it('does not call saveIncome when nextDueDate is still in the future', async () => {
+    mockGetAllIncomes.mockResolvedValue([
+      template({
+        recurring: { frequency: 'monthly', nextDueDate: '2099-01-01', endDate: '2100-01-01' },
+      }),
+    ]);
+    const created = await processRecurringIncomes();
+    expect(created).toBe(0);
+    expect(mockSaveIncome).not.toHaveBeenCalled();
+  });
+
+  it('caps generated paychecks at 60 per template per call', async () => {
+    mockGetAllIncomes.mockResolvedValue([
+      template({
+        recurring: {
+          frequency: 'weekly',
+          nextDueDate: '2000-01-01',
+          endDate: '2100-01-01',
+        },
+      }),
+    ]);
+    const created = await processRecurringIncomes();
+    expect(created).toBe(60);
+    // 60 occurrences + 1 template advance write
+    expect(mockSaveIncome).toHaveBeenCalledTimes(61);
+  });
 });
