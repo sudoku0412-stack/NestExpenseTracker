@@ -18,6 +18,10 @@ import {
   setOnboardingSeen,
   getAiParseCountThisMonth,
   incrementAiParseCount,
+  getLanguagePreference,
+  setLanguagePreference,
+  getThemePreference,
+  setThemePreference,
 } from '../lib/secureStorage';
 
 const mockedStore = (SecureStore as unknown as { __store: Map<string, string> }).__store;
@@ -69,5 +73,39 @@ describe('storage key namespace', () => {
     for (const key of mockedStore.keys()) {
       expect(key.startsWith('bs.')).toBe(true);
     }
+  });
+});
+
+describe('language and theme preference fallbacks', () => {
+  it('treats a missing or unknown language as system', async () => {
+    expect(await getLanguagePreference()).toBe('system');
+    mockedStore.set('bs.language.preference', 'de');
+    expect(await getLanguagePreference()).toBe('system');
+    await setLanguagePreference('fr');
+    expect(await getLanguagePreference()).toBe('fr');
+    await setLanguagePreference('en');
+    expect(await getLanguagePreference()).toBe('en');
+    await setLanguagePreference('system');
+    expect(await getLanguagePreference()).toBe('system');
+  });
+
+  it('treats a missing or unknown theme as system', async () => {
+    expect(await getThemePreference()).toBe('system');
+    mockedStore.set('bs.theme.preference', 'sepia');
+    expect(await getThemePreference()).toBe('system');
+    await setThemePreference('dark');
+    expect(await getThemePreference()).toBe('dark');
+    await setThemePreference('light');
+    expect(await getThemePreference()).toBe('light');
+  });
+});
+
+describe('AI parse quota resilience', () => {
+  it('treats a non-numeric stored count as 0 so a corrupt value cannot skip the free-tier gate', async () => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    mockedStore.set(`bs.aiParse.count.uid-1.${ym}`, 'not-a-number');
+    expect(await getAiParseCountThisMonth('uid-1')).toBe(0);
+    expect(await incrementAiParseCount('uid-1')).toBe(1);
   });
 });

@@ -220,4 +220,13 @@ describe('getRecentIncomeSourceNames', () => {
       'Gift',
     ]);
   });
+
+  it('stays in the active household, including this user\'s NULL-household rows', async () => {
+    seed({ id: 'a', source_name: 'Mine', household_id: 'hh1', date: '2026-03-20' });
+    seed({ id: 'b', source_name: 'Legacy', household_id: null, date: '2026-03-19' });
+    seed({ id: 'c', source_name: 'Other house', household_id: 'hh-other', date: '2026-03-21' });
+    seed({ id: 'd', source_name: 'Other user', household_id: 'hh1', user_id: 'user-2', date: '2026-03-22' });
+
+    await expect(getRecentIncomeSourceNames(8)).resolves.toEqual(['Mine', 'Legacy']);
+  });
 });
