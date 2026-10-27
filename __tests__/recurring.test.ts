@@ -255,6 +255,60 @@ describe('processRecurringReceipts', () => {
     expect(occurrence.lineItems?.[0].id).not.toBe(t.lineItems![0].id);
   });
 
+  it('copies split/paidBy/createdBy/categoryTags for balances, clones item splitWith, and drops the photo', async () => {
+    const splitWith = ['self', 'uid-b'];
+    const t = template({
+      photoUrl: 'https://storage.example/gym.jpg',
+      categoryTags: ['Other', 'Fitness'],
+      paidBy: 'uid-a',
+      createdBy: 'uid-a',
+      split: {
+        enabled: true,
+        method: 'equal',
+        participantIds: ['self', 'uid-b'],
+      },
+      lineItems: [
+        { id: 'li1', name: 'Membership', amount: 50, category: 'Other', splitWith },
+      ],
+      recurring: { frequency: 'monthly', nextDueDate: '2025-12-01', endDate: '2025-12-01' },
+    });
+    mockGetAllReceipts.mockResolvedValue([t]);
+    await processRecurringReceipts();
+    const occurrence = mockSaveReceipt.mock.calls[0][0] as Receipt;
+    expect(occurrence.photoUrl).toBeUndefined();
+    expect(occurrence.paidBy).toBe('uid-a');
+    expect(occurrence.createdBy).toBe('uid-a');
+    expect(occurrence.categoryTags).toEqual(['Other', 'Fitness']);
+    expect(occurrence.split).toEqual({
+      enabled: true,
+      method: 'equal',
+      participantIds: ['self', 'uid-b'],
+    });
+    expect(occurrence.lineItems?.[0].splitWith).toEqual(['self', 'uid-b']);
+  });
+
+  it('advances each template independently when several are due in one pass', async () => {
+    mockGetAllReceipts.mockResolvedValue([
+      template({
+        id: 'gym',
+        storeName: 'Gym',
+        recurring: { frequency: 'monthly', nextDueDate: '2025-12-01', endDate: '2025-12-01' },
+      }),
+      template({
+        id: 'netflix',
+        storeName: 'Netflix',
+        totalAmount: 15,
+        recurring: { frequency: 'monthly', nextDueDate: '2025-12-01', endDate: '2025-12-01' },
+      }),
+    ]);
+    const created = await processRecurringReceipts();
+    expect(created).toBe(2);
+    const saved = mockSaveReceipt.mock.calls.map((c) => c[0] as Receipt);
+    expect(saved.map((r) => r.storeName).sort()).toEqual(['Gym', 'Netflix']);
+    const updatedIds = mockUpdateReceipt.mock.calls.map((c) => (c[0] as Receipt).id).sort();
+    expect(updatedIds).toEqual(['gym', 'netflix']);
+  });
+
   it('does not call updateReceipt when a template generates no occurrences (future nextDueDate)', async () => {
     const t = template({
       recurring: { frequency: 'monthly', nextDueDate: '2099-01-01', endDate: '2100-01-01' },

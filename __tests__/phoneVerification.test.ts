@@ -125,6 +125,18 @@ describe('confirmPhoneVerification', () => {
     expect(result).toEqual({});
   });
 
+  it('trims whitespace on the SMS code before building the credential', async () => {
+    const linkWithCredential = jest.fn().mockResolvedValue({
+      user: { uid: 'u1', phoneNumber: '+14165551234' },
+    });
+    mockGetCurrentUser.mockReturnValue({ uid: 'u1', linkWithCredential });
+    mockCredential.mockReturnValue({ mock: 'cred' });
+    mockAcceptPhoneInviteIfAny.mockResolvedValue({ joined: false });
+
+    await confirmPhoneVerification(confirmation, '  123456\n');
+    expect(mockCredential).toHaveBeenCalledWith('vid-1', '123456');
+  });
+
   it('skips phone-index/invite steps when the linked user has no phone number', async () => {
     const linkWithCredential = jest.fn().mockResolvedValue({
       user: { uid: 'u1', phoneNumber: null },

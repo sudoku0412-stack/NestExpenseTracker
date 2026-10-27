@@ -503,6 +503,40 @@ describe('findRecurring', () => {
     expect(matches.filter((m) => m.kind === 'item')).toHaveLength(0);
   });
 
+  it('does not flag items whose normalized name is shorter than 3 characters', () => {
+    const receipts = [
+      baseReceipt({
+        storeName: 'Corner',
+        date: localIso(2026, 3, 5),
+        totalAmount: 2,
+        lineItems: [{ id: '1', name: 'TV', amount: 2, category: 'Electronics' }],
+      }),
+      baseReceipt({
+        storeName: 'Corner',
+        date: localIso(2026, 4, 5),
+        totalAmount: 2,
+        lineItems: [{ id: '2', name: 'TV', amount: 2, category: 'Electronics' }],
+      }),
+      baseReceipt({
+        storeName: 'Corner',
+        date: localIso(2026, 5, 5),
+        totalAmount: 2,
+        lineItems: [{ id: '3', name: 'TV', amount: 2, category: 'Electronics' }],
+      }),
+    ];
+    const matches = findRecurring(receipts, 3);
+    expect(matches.filter((m) => m.kind === 'item')).toHaveLength(0);
+    expect(matches.find((m) => m.kind === 'store' && m.displayName === 'Corner')).toBeDefined();
+  });
+
+  it('does not flag a store that only appears in two months', () => {
+    const receipts = [
+      baseReceipt({ storeName: 'Shell', date: localIso(2026, 3, 5), totalAmount: 40 }),
+      baseReceipt({ storeName: 'Shell', date: localIso(2026, 4, 8), totalAmount: 42 }),
+    ];
+    expect(findRecurring(receipts, 3).filter((m) => m.kind === 'store')).toHaveLength(0);
+  });
+
   it('ignores negative-amount (discount) line items', () => {
     const receipts = [
       baseReceipt({
