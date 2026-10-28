@@ -134,6 +134,36 @@ describe('classifyItemAsync', () => {
     const result = await classifyItemAsync('Milk');
     expect(result).toBe('Groceries');
   });
+
+  it('does not cache an invalid Gemini category and falls through to Anthropic', async () => {
+    mockGeminiKey = 'gemini-key';
+    mockClassifyWithGemini.mockResolvedValue({ ok: true, category: 'Snacks' });
+    mockGetAiClassifyEnabled.mockResolvedValue(true);
+    mockGetAnthropicApiKey.mockResolvedValue('anthropic-key');
+    mockClassifyWithAnthropic.mockResolvedValue({ ok: true, category: 'Pharmacy' });
+    const result = await classifyItemAsync('SomeMysteryItemXYZ');
+    expect(result).toBe('Pharmacy');
+    expect(mockSetCachedItemClassification).toHaveBeenCalledTimes(1);
+    expect(mockSetCachedItemClassification).toHaveBeenCalledWith('somemysteryitemxyz', 'Pharmacy', 'remote');
+  });
+
+  it('ignores an unknown or failed backend category instead of caching it', async () => {
+    process.env.EXPO_PUBLIC_CLASSIFY_ENDPOINT = 'https://classify.example';
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ category: 'Snacks' }),
+    });
+    await expect(classifyItemAsync('SomeMysteryItemXYZ')).resolves.toBe('Other');
+    expect(mockSetCachedItemClassification).not.toHaveBeenCalled();
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ category: 'Travel' }),
+    });
+    await expect(classifyItemAsync('SomeMysteryItemXYZ')).resolves.toBe('Other');
+    expect(mockSetCachedItemClassification).not.toHaveBeenCalled();
+    delete process.env.EXPO_PUBLIC_CLASSIFY_ENDPOINT;
+  });
 });
 
 describe('refineUncategorizedItems', () => {

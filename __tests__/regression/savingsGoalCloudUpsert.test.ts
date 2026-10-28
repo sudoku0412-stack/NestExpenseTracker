@@ -18,7 +18,10 @@ jest.mock('expo-sqlite', () => ({
         name: params[1] as string,
         target_usd: params[2] as number,
         allocated_usd: params[3] as number,
+        notes: params[4] as string | null,
         updated_at: params[6] as string,
+        user_id: params[7] as string,
+        household_id: params[8] as string | null,
       });
       return { lastInsertRowId: 0, changes: 1 };
     }),
@@ -106,6 +109,47 @@ describe('upsertSavingsGoalFromCloud', () => {
       name: 'Emergency',
       allocated_usd: 400,
       updated_at: '2026-03-03T00:00:00.000Z',
+    });
+  });
+
+  it('keeps the local envelope when updatedAt is equal or missing on the cloud snapshot', async () => {
+    mockRows.set('g1', {
+      id: 'g1',
+      name: 'Vacation',
+      target_usd: 2000,
+      allocated_usd: 500,
+      updated_at: '2026-03-02T12:00:00.000Z',
+    });
+
+    await upsertSavingsGoalFromCloud(
+      goal({ name: 'Cloud', allocatedUsd: 1, updatedAt: '2026-03-02T12:00:00.000Z' }),
+      'user-1',
+      'house-1',
+    );
+    expect(mockRows.get('g1')?.name).toBe('Vacation');
+
+    await upsertSavingsGoalFromCloud(
+      goal({ name: 'Cloud', allocatedUsd: 1, updatedAt: undefined as unknown as string }),
+      'user-1',
+      'house-1',
+    );
+    expect(mockRows.get('g1')?.allocated_usd).toBe(500);
+  });
+
+  it('inserts a missing envelope stamped with the listener uid and household', async () => {
+    await upsertSavingsGoalFromCloud(
+      goal({ name: 'Emergency', notes: 'keep 3 months' }),
+      'user-1',
+      'house-1',
+    );
+
+    expect(mockRows.get('g1')).toMatchObject({
+      name: 'Emergency',
+      target_usd: 1000,
+      allocated_usd: 100,
+      notes: 'keep 3 months',
+      user_id: 'user-1',
+      household_id: 'house-1',
     });
   });
 });

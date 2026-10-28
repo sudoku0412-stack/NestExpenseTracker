@@ -75,6 +75,13 @@ describe('advance', () => {
     expect(advance('2026-01-01', 'biweekly')).toBe('2026-01-15');
     expect(advance('2026-01-31', 'biweekly')).toBe('2026-02-14');
   });
+
+  it('clamps month-end dates instead of overflowing into the next month', () => {
+    // 2026 is not a leap year; date-fns addMonths(Jan 31) → Feb 28.
+    expect(advance('2026-01-31', 'monthly')).toBe('2026-02-28');
+    expect(advance('2026-03-31', 'monthly')).toBe('2026-04-30');
+    expect(advance('2024-02-29', 'yearly')).toBe('2025-02-28');
+  });
 });
 
 describe('isRecurringIncome', () => {
@@ -107,6 +114,7 @@ describe('isRecurringIncome', () => {
 describe('computeRecurringEndDate', () => {
   it('adds the given number of months to the start date', () => {
     expect(computeRecurringEndDate('2026-01-15', 6)).toBe('2026-07-15');
+    expect(computeRecurringEndDate('2026-01-31', 1)).toBe('2026-02-28');
   });
 
   it('handles a 12-month duration (one year)', () => {

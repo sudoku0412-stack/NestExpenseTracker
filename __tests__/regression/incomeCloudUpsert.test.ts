@@ -20,7 +20,12 @@ jest.mock('expo-sqlite', () => ({
         source_name: params[1] as string,
         amount_usd: params[3] as number,
         earned_by: params[5] as string,
+        recurring_json: params[8] as string | null,
+        created_by: params[9] as string | null,
         updated_at: params[11] as string,
+        user_id: params[12] as string,
+        household_id: params[13] as string | null,
+        is_recurring_occurrence: params[14] as number,
       });
       return { lastInsertRowId: 0, changes: 1 };
     }),
@@ -113,6 +118,81 @@ describe('upsertIncomeFromCloud', () => {
       amount_usd: 400,
       earned_by: 'uid-b',
       updated_at: '2026-03-03T00:00:00.000Z',
+    });
+  });
+
+  it('keeps the local row when the cloud snapshot has the same updatedAt', async () => {
+    mockRows.set('inc-1', {
+      id: 'inc-1',
+      source_name: 'Local',
+      amount_usd: 250,
+      earned_by: 'uid-b',
+      updated_at: '2026-03-02T12:00:00.000Z',
+    });
+
+    await upsertIncomeFromCloud(
+      income({
+        sourceName: 'Cloud',
+        amountUsd: 1,
+        earnedBy: 'uid-a',
+        updatedAt: '2026-03-02T12:00:00.000Z',
+      }),
+      'user-1',
+      'house-1',
+    );
+
+    expect(mockRows.get('inc-1')).toMatchObject({
+      source_name: 'Local',
+      amount_usd: 250,
+      earned_by: 'uid-b',
+    });
+  });
+
+  it('does not clobber a local row when the cloud snapshot omits updatedAt', async () => {
+    mockRows.set('inc-1', {
+      id: 'inc-1',
+      source_name: 'Local',
+      amount_usd: 250,
+      earned_by: 'uid-b',
+      updated_at: '2026-03-02T12:00:00.000Z',
+    });
+
+    await upsertIncomeFromCloud(
+      income({ sourceName: 'Cloud', amountUsd: 1, updatedAt: undefined as unknown as string }),
+      'user-1',
+      'house-1',
+    );
+
+    expect(mockRows.get('inc-1')?.source_name).toBe('Local');
+  });
+
+  it('inserts a missing income stamped with the listener uid, household, and occurrence flag', async () => {
+    await upsertIncomeFromCloud(
+      income({
+        sourceName: 'Payroll',
+        amountUsd: 3200,
+        earnedBy: 'uid-a',
+        createdBy: 'uid-a',
+        isRecurringOccurrence: true,
+        recurring: { frequency: 'biweekly', nextDueDate: '2026-03-15', endDate: '2026-12-31' },
+      }),
+      'user-1',
+      'house-1',
+    );
+
+    expect(mockRows.get('inc-1')).toMatchObject({
+      source_name: 'Payroll',
+      amount_usd: 3200,
+      earned_by: 'uid-a',
+      created_by: 'uid-a',
+      user_id: 'user-1',
+      household_id: 'house-1',
+      is_recurring_occurrence: 1,
+    });
+    expect(JSON.parse(String(mockRows.get('inc-1')?.recurring_json))).toEqual({
+      frequency: 'biweekly',
+      nextDueDate: '2026-03-15',
+      endDate: '2026-12-31',
     });
   });
 });
