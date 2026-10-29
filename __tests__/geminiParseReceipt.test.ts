@@ -1,4 +1,8 @@
-import { parseGeminiPayload, formatExamples } from '../lib/geminiParseReceipt';
+import {
+  parseGeminiPayload,
+  parseReceiptWithGemini,
+  formatExamples,
+} from '../lib/geminiParseReceipt';
 
 describe('parseGeminiPayload — validating Gemini JSON receipt response', () => {
   it('parses a valid full receipt response', () => {
@@ -238,6 +242,39 @@ describe('parseGeminiPayload — validating Gemini JSON receipt response', () =>
       expect(r.receipt.categoryTags).toEqual(['Other', 'Pet Food', 'Pet Toys']);
     });
   });
+
+  it('accepts YYYY/MM/DD dates as local wall-clock dates', () => {
+    const json = JSON.stringify({
+      store: 'X',
+      date: '2026/02/28',
+      total: 10,
+      items: [],
+    });
+    const result = parseGeminiPayload(json);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const d = new Date(result.receipt.date);
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(1);
+    expect(d.getDate()).toBe(28);
+  });
+
+  it('folds Gemini discount lines into the matching SKU item', () => {
+    const json = JSON.stringify({
+      store: 'Costco',
+      total: 54.99,
+      items: [
+        { name: '1993379 EKO MIRROR', amount: 69.99, category: 'Home' },
+        { name: 'TPD/1993379', amount: -15, category: 'Other' },
+      ],
+    });
+    const result = parseGeminiPayload(json);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.receipt.lineItems).toHaveLength(1);
+    expect(result.receipt.lineItems[0].name).toMatch(/mirror/i);
+    expect(result.receipt.lineItems[0].amount).toBe(54.99);
+  });
 });
 
 describe('formatExamples — in-context learning from prior user corrections', () => {
@@ -291,5 +328,140 @@ describe('formatExamples — in-context learning from prior user corrections', (
       { rawOcr: 'BAR\nA 1.00', items: [{ name: 'A', amount: 1 }] },
     ]);
     expect(out).toContain('"category": "Other"');
+  });
+});
+
+const okEnvelope = (payload: unknown) => ({
+  ok: true,
+  json: async () => ({
+    candidates: [
+      {
+        content: {
+          parts: [{ text: JSON.stringify(payload) }],
+        },
+      },
+    ],
+  }),
+});
+
+describe('parseReceiptWithGemini — HTTP and prompt guards', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = jest.fn() as unknown as typeof fetch;
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('returns no-key without fetching when the API key is missing', async () => {
+    const result = await parseReceiptWithGemini('STORE\nTOTAL 5.00', '');
+    expect(result).toEqual({ ok: false, kind: 'no-key', error: 'missing key or text' });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('returns no-key without fetching when OCR text is blank', async () => {
+    const result = await parseReceiptWithGemini('   ', 'gemini-key');
+    expect(result).toEqual({ ok: false, kind: 'no-key', error: 'missing key or text' });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('returns network kind when fetch throws', async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('offline'));
+    const result = await parseReceiptWithGemini('STORE\nTOTAL 5.00', 'gemini-key');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe('network');
+      expect(result.error).toContain('offline');
+    }
+  });
+
+  it.each([
+    [429, 'rate-limited'],
+    [401, 'auth'],
+    [403, 'auth'],
+    [500, 'server'],
+    [418, 'unknown'],
+  ])('maps HTTP status %d to kind %s', async (status, kind) => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      status,
+      text: async () => 'error body',
+    });
+    const result = await parseReceiptWithGemini('STORE\nTOTAL 5.00', 'gemini-key');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.kind).toBe(kind);
+      expect(result.error).toContain(`http ${status}`);
+    }
+  });
+
+  it('returns parse kind when the envelope is not JSON', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new Error('Unexpected token');
+      },
+    });
+    const result = await parseReceiptWithGemini('STORE\nTOTAL 5.00', 'gemini-key');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.kind).toBe('parse');
+  });
+
+  it('returns empty kind when candidates have no text', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{}] } }] }),
+    });
+    const result = await parseReceiptWithGemini('STORE\nTOTAL 5.00', 'gemini-key');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.kind).toBe('empty');
+  });
+
+  it('parses a 200 envelope into a receipt', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      okEnvelope({
+        store: 'Walmart',
+        total: 12.34,
+        items: [{ name: 'Milk', amount: 12.34, category: 'Groceries' }],
+      }),
+    );
+    const result = await parseReceiptWithGemini('WALMART\nMILK 12.34\nTOTAL 12.34', 'gemini-key');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.receipt.storeName).toBe('Walmart');
+    expect(result.receipt.totalAmount).toBe(12.34);
+    expect(result.receipt.lineItems[0].name).toBe('Milk');
+  });
+
+  it('disables thinking tokens and URL-encodes the API key', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      okEnvelope({ store: 'X', total: 1, items: [] }),
+    );
+    await parseReceiptWithGemini('X', 'key with spaces+');
+    const [url, opts] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('key=key%20with%20spaces%2B');
+    const body = JSON.parse(opts.body);
+    expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+    expect(body.generationConfig.responseMimeType).toBe('application/json');
+  });
+
+  it('caps OCR at 8000 characters and splices correction examples before it', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      okEnvelope({ store: 'X', total: 1, items: [] }),
+    );
+    const ocr = `${'A'.repeat(8500)}UNIQUE_TAIL`;
+    await parseReceiptWithGemini(ocr, 'k', undefined, [
+      { rawOcr: 'PRIOR OCR', items: [{ name: 'Prior item', amount: 2, category: 'Groceries' }] },
+    ]);
+    const [, opts] = (global.fetch as jest.Mock).mock.calls[0];
+    const prompt = JSON.parse(opts.body).contents[0].parts[0].text as string;
+    expect(prompt).toContain('PRIOR OCR');
+    expect(prompt).toContain('Prior item');
+    expect(prompt.indexOf('PRIOR OCR')).toBeLessThan(prompt.indexOf('Receipt OCR text:'));
+    expect(prompt).toContain('A'.repeat(8000));
+    expect(prompt).not.toContain('UNIQUE_TAIL');
+    expect(prompt).not.toContain('A'.repeat(8001));
   });
 });

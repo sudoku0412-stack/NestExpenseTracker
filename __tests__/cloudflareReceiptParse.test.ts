@@ -106,4 +106,24 @@ describe('parseReceiptWithCloudflare', () => {
     const [, opts] = (global.fetch as jest.Mock).mock.calls[0];
     expect(opts.headers['x-app-secret']).toBeUndefined();
   });
+
+  it('posts correction examples so the worker can few-shot the same store', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ store: 'X', total: 1, items: [] }),
+    });
+    const examples = [{ rawOcr: 'COSTCO MILK', items: [{ name: 'Milk', amount: 3.99, category: 'Groceries' }] }];
+    await parseReceiptWithCloudflare({
+      rawText: 'COSTCO\nMILK 3.99',
+      endpoint: 'https://worker.example/parse',
+      examples,
+    });
+    const [url, opts] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toBe('https://worker.example/parse');
+    expect(JSON.parse(opts.body)).toEqual({
+      rawText: 'COSTCO\nMILK 3.99',
+      examples,
+    });
+  });
 });

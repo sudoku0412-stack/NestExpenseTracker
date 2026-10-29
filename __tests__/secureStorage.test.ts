@@ -18,6 +18,10 @@ import {
   setOnboardingSeen,
   getAiParseCountThisMonth,
   incrementAiParseCount,
+  getAnthropicApiKey,
+  setAnthropicApiKey,
+  getGeminiApiKey,
+  setGeminiApiKey,
 } from '../lib/secureStorage';
 
 const mockedStore = (SecureStore as unknown as { __store: Map<string, string> }).__store;
@@ -69,5 +73,23 @@ describe('storage key namespace', () => {
     for (const key of mockedStore.keys()) {
       expect(key.startsWith('bs.')).toBe(true);
     }
+  });
+});
+
+describe('AI API keys', () => {
+  it('trims stored Gemini/Anthropic keys and deletes them when blank', async () => {
+    await setGeminiApiKey('  gem-live  ');
+    await setAnthropicApiKey('\nsk-ant-live\n');
+    expect(await getGeminiApiKey()).toBe('gem-live');
+    expect(await getAnthropicApiKey()).toBe('sk-ant-live');
+    expect(mockedStore.get('bs.gemini.apiKey')).toBe('gem-live');
+    expect(mockedStore.get('bs.anthropic.apiKey')).toBe('sk-ant-live');
+
+    await setGeminiApiKey('   ');
+    await setAnthropicApiKey(null);
+    expect(await getGeminiApiKey()).toBeNull();
+    expect(await getAnthropicApiKey()).toBeNull();
+    expect(mockedStore.has('bs.gemini.apiKey')).toBe(false);
+    expect(mockedStore.has('bs.anthropic.apiKey')).toBe(false);
   });
 });
