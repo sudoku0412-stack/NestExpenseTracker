@@ -30,6 +30,7 @@ import {
   logoutPurchases,
   getIsPremium,
   getManagementUrl,
+  getOfferings,
   purchasePackage,
   restorePurchases,
   subscribeToEntitlementChanges,
@@ -102,6 +103,14 @@ describe('getManagementUrl', () => {
   it('returns null when there is nothing to manage', async () => {
     mockGetCustomerInfo.mockResolvedValue({ ...customerInfoWith([]), managementURL: null });
     expect(await getManagementUrl()).toBeNull();
+  });
+});
+
+describe('getOfferings', () => {
+  it('returns the RevenueCat offerings payload', async () => {
+    const offerings = { current: { identifier: 'default' } };
+    mockGetOfferings.mockResolvedValue(offerings);
+    await expect(getOfferings()).resolves.toBe(offerings);
   });
 });
 

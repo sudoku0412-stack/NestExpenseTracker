@@ -112,6 +112,10 @@ describe('classifyItemAsync', () => {
       expect.objectContaining({ method: 'POST' }),
     );
     expect(mockSetCachedItemClassification).toHaveBeenCalledWith('somemysteryitemxyz', 'Travel', 'remote');
+    const [, opts] = (global.fetch as jest.Mock).mock.calls[0];
+    const posted = JSON.parse(opts.body);
+    expect(posted.name).toBe('somemysteryitemxyz');
+    expect(posted.categories).toEqual(expect.arrayContaining(['Groceries', 'Other', 'Investments']));
     delete process.env.EXPO_PUBLIC_CLASSIFY_ENDPOINT;
   });
 

@@ -1,5 +1,8 @@
 const mockUpdateProfile = jest.fn();
 const mockSignInAnonymously = jest.fn();
+const mockSignInWithEmailAndPassword = jest.fn();
+const mockCreateUserWithEmailAndPassword = jest.fn();
+const mockSignInWithPhoneNumber = jest.fn();
 const mockSignInWithCredential = jest.fn();
 const mockSignOut = jest.fn();
 const mockSendPasswordResetEmail = jest.fn();
@@ -9,6 +12,7 @@ const mockAppleCredentialFn = jest.fn();
 let mockCurrentUser: {
   updateProfile?: jest.Mock;
   delete?: jest.Mock;
+  reload?: jest.Mock;
   providerData?: Array<{ providerId: string }>;
 } | null = null;
 
@@ -18,6 +22,10 @@ jest.mock('@react-native-firebase/auth', () => {
       return mockCurrentUser;
     },
     signInAnonymously: (...args: unknown[]) => mockSignInAnonymously(...args),
+    signInWithEmailAndPassword: (...args: unknown[]) => mockSignInWithEmailAndPassword(...args),
+    createUserWithEmailAndPassword: (...args: unknown[]) =>
+      mockCreateUserWithEmailAndPassword(...args),
+    signInWithPhoneNumber: (...args: unknown[]) => mockSignInWithPhoneNumber(...args),
     signInWithCredential: (...args: unknown[]) => mockSignInWithCredential(...args),
     signOut: (...args: unknown[]) => mockSignOut(...args),
     sendPasswordResetEmail: (...args: unknown[]) => mockSendPasswordResetEmail(...args),
@@ -71,6 +79,12 @@ import {
   hasGoogleProvider,
   sendPasswordReset,
   signOutEverywhere,
+  signInWithEmail,
+  signUpWithEmail,
+  signInAsGuest,
+  signInWithPhone,
+  confirmPhoneCode,
+  reloadCurrentUser,
 } from '../lib/auth';
 
 beforeEach(() => {
@@ -85,6 +99,65 @@ beforeEach(() => {
   isErrorWithCodeImpl = (e: unknown): e is { code: string } =>
     typeof e === 'object' && e !== null && 'code' in e;
   isSuccessResponseImpl = (r: unknown): boolean => (r as { type?: string })?.type === 'success';
+});
+
+describe('email / guest / phone sign-in', () => {
+  it('signInWithEmail trims the email before calling Firebase', async () => {
+    mockSignInWithEmailAndPassword.mockResolvedValue({ user: { uid: 'u1' } });
+    const user = await signInWithEmail('  jane@example.com  ', 'secret');
+    expect(mockSignInWithEmailAndPassword).toHaveBeenCalledWith('jane@example.com', 'secret');
+    expect(user).toEqual({ uid: 'u1' });
+  });
+
+  it('signUpWithEmail trims the email before calling Firebase', async () => {
+    mockCreateUserWithEmailAndPassword.mockResolvedValue({ user: { uid: 'u2' } });
+    const user = await signUpWithEmail('  New@Example.COM ', 'secret');
+    expect(mockCreateUserWithEmailAndPassword).toHaveBeenCalledWith('New@Example.COM', 'secret');
+    expect(user).toEqual({ uid: 'u2' });
+  });
+
+  it('signInAsGuest returns the anonymous user', async () => {
+    mockSignInAnonymously.mockResolvedValue({ user: { uid: 'anon' } });
+    await expect(signInAsGuest()).resolves.toEqual({ uid: 'anon' });
+  });
+
+  it('signInWithPhone trims the number', async () => {
+    mockSignInWithPhoneNumber.mockResolvedValue({ verificationId: 'vid' });
+    await expect(signInWithPhone('  +14165551234  ')).resolves.toEqual({ verificationId: 'vid' });
+    expect(mockSignInWithPhoneNumber).toHaveBeenCalledWith('+14165551234');
+  });
+
+  it('confirmPhoneCode trims the SMS code and returns the user', async () => {
+    const confirm = jest.fn().mockResolvedValue({ user: { uid: 'u3' } });
+    await expect(confirmPhoneCode({ confirm } as never, '  123456  ')).resolves.toEqual({
+      uid: 'u3',
+    });
+    expect(confirm).toHaveBeenCalledWith('123456');
+  });
+
+  it('confirmPhoneCode throws when Firebase returns no user', async () => {
+    const confirm = jest.fn().mockResolvedValue({ user: null });
+    await expect(confirmPhoneCode({ confirm } as never, '123456')).rejects.toThrow(
+      'Phone confirmation failed.',
+    );
+  });
+});
+
+describe('reloadCurrentUser', () => {
+  it('returns null when nobody is signed in', async () => {
+    mockCurrentUser = null;
+    await expect(reloadCurrentUser()).resolves.toBeNull();
+  });
+
+  it('reloads the current user and returns the post-reload snapshot', async () => {
+    const reload = jest.fn().mockImplementation(async () => {
+      mockCurrentUser = { updateProfile: mockUpdateProfile, providerData: [] };
+    });
+    mockCurrentUser = { updateProfile: mockUpdateProfile, reload };
+    const result = await reloadCurrentUser();
+    expect(reload).toHaveBeenCalled();
+    expect(result).toBe(mockCurrentUser);
+  });
 });
 
 describe('updateAuthDisplayName', () => {

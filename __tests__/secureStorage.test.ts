@@ -18,6 +18,8 @@ import {
   setOnboardingSeen,
   getAiParseCountThisMonth,
   incrementAiParseCount,
+  getLastBudgetAlertDate,
+  setLastBudgetAlertDate,
 } from '../lib/secureStorage';
 
 const mockedStore = (SecureStore as unknown as { __store: Map<string, string> }).__store;
@@ -69,5 +71,20 @@ describe('storage key namespace', () => {
     for (const key of mockedStore.keys()) {
       expect(key.startsWith('bs.')).toBe(true);
     }
+  });
+});
+
+describe('lastBudgetAlertDate household isolation', () => {
+  it('stores today\'s throttle independently per household', async () => {
+    await setLastBudgetAlertDate('hh-a', '2026-10-30');
+    await setLastBudgetAlertDate('hh-b', '2026-10-29');
+    expect(await getLastBudgetAlertDate('hh-a')).toBe('2026-10-30');
+    expect(await getLastBudgetAlertDate('hh-b')).toBe('2026-10-29');
+    expect(mockedStore.get('bs.budgets.lastAlertDate.hh-a')).toBe('2026-10-30');
+    expect(mockedStore.get('bs.budgets.lastAlertDate.hh-b')).toBe('2026-10-29');
+  });
+
+  it('returns null when that household has never alerted', async () => {
+    expect(await getLastBudgetAlertDate('never')).toBeNull();
   });
 });
