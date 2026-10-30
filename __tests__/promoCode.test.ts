@@ -54,6 +54,32 @@ function seedCode(code: string, fields: Record<string, unknown>) {
 }
 
 describe('redeemPromoCode', () => {
+  it('rejects a blank code without writing', async () => {
+    await expect(redeemPromoCode('   ', 'u1')).resolves.toEqual({
+      ok: false,
+      reason: 'Enter a code first.',
+    });
+    expect(store.size).toBe(0);
+  });
+
+  it('rejects a code that grants neither Premium nor free days', async () => {
+    seedCode('NOOP', { active: true, grantsPro: false, freeDays: 0 });
+    await expect(redeemPromoCode('NOOP', 'u1')).resolves.toEqual({
+      ok: false,
+      reason: "That code isn't valid.",
+    });
+    expect(store.has('promoRedemptions/u1')).toBe(false);
+  });
+
+  it('a grantsPro code stays permanent even when freeDays is also set', async () => {
+    seedCode('BOTH', { active: true, grantsPro: true, freeDays: 30 });
+    const result = await redeemPromoCode('BOTH', 'u1');
+    expect(result).toEqual({
+      ok: true,
+      redemption: { code: 'BOTH', grantsPro: true, freeUntil: null },
+    });
+  });
+
   it('rejects an unknown code', async () => {
     const result = await redeemPromoCode('NOPE', 'u1');
     expect(result).toEqual({ ok: false, reason: "That code isn't valid." });

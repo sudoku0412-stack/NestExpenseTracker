@@ -134,6 +134,16 @@ describe('sendExpoPushNotifications', () => {
     expect(body.map((m: { to: string }) => m.to).sort()).toEqual(['t1', 't2']);
   });
 
+  it('drops blank tokens and posts the Expo push endpoint', async () => {
+    await sendExpoPushNotifications(['', 't1', ''], 'Title', 'Body');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [url, opts] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toBe('https://exp.host/--/api/v2/push/send');
+    expect(JSON.parse(opts.body)).toEqual([
+      { to: 't1', title: 'Title', body: 'Body', data: undefined, sound: 'default' },
+    ]);
+  });
+
   it('never throws on fetch failure', async () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error('network down'));
     await expect(sendExpoPushNotifications(['t1'], 'Title', 'Body')).resolves.toBeUndefined();

@@ -586,4 +586,29 @@ describe('receiptsToCsv', () => {
     expect(lines[1]).toContain('Diner');
     expect(lines[1]).toContain('Dining');
   });
+
+  it('sorts oldest-to-newest and converts stored USD into the display currency', () => {
+    const csv = receiptsToCsv(
+      [
+        baseReceipt({
+          id: 'newer',
+          date: '2026-05-20T00:00:00.000Z',
+          storeName: 'Later',
+          totalAmount: 10,
+        }),
+        baseReceipt({
+          id: 'older',
+          date: '2026-05-01T00:00:00.000Z',
+          storeName: 'Earlier',
+          totalAmount: 10,
+        }),
+      ],
+      'CAD',
+    );
+    const lines = csv.split('\n');
+    expect(lines[1]).toContain('Earlier');
+    expect(lines[2]).toContain('Later');
+    expect(lines[1]).toContain('CAD');
+    expect(lines[1]).toContain('13.80');
+  });
 });

@@ -72,5 +72,25 @@ describe('parsePaystubText', () => {
     const parsed = parsePaystubText('Net pay $0.00\nNet pay $1,250.50\nPay date 2026-02-01');
     expect(parsed.amount).toBeCloseTo(1250.5);
   });
+
+  it('maps 2-digit years: 70+ is 1900s, below that is 2000s', () => {
+    expect(parsePaystubText('Net pay $100.00\nPay date 03/15/70').date).toBe('1970-03-15');
+    expect(parsePaystubText('Net pay $100.00\nPay date 03/15/00').date).toBe('2000-03-15');
+  });
+
+  it('skips a Pay stub / earnings-statement header when picking the employer', () => {
+    const parsed = parsePaystubText(
+      ['Pay stub', 'Earnings statement', 'Contoso Payroll', 'Net pay $800.00', 'Pay date 2026-05-01'].join(
+        '\n',
+      ),
+    );
+    expect(parsed.sourceName).toBe('Contoso Payroll');
+  });
+
+  it('accepts cheque date as a payday label', () => {
+    const parsed = parsePaystubText('Net pay $400.00\nCheque date 2026-06-15');
+    expect(parsed.date).toBe('2026-06-15');
+    expect(parsed.confidence).toBe('high');
+  });
 });
 
