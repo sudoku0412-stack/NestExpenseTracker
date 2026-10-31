@@ -53,4 +53,34 @@ describe('checkItemsAgainstSubtotal', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.sum).toBe(0);
   });
+
+  it('accepts a $0.50 difference and rejects $0.51', () => {
+    expect(checkItemsAgainstSubtotal([li('a', 10.5)], 10).ok).toBe(true);
+    const over = checkItemsAgainstSubtotal([li('a', 10.51)], 10);
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(over.diff).toBeCloseTo(0.51, 2);
+  });
+
+  it('skips the check when the printed subtotal is missing, zero, or not finite', () => {
+    expect(checkItemsAgainstSubtotal([li('a', 5)], undefined)).toMatchObject({
+      ok: true,
+      skipped: true,
+      sum: 5,
+    });
+    expect(checkItemsAgainstSubtotal([li('a', 5)], 0)).toMatchObject({ ok: true, skipped: true });
+    expect(checkItemsAgainstSubtotal([li('a', 5)], -12)).toMatchObject({ ok: true, skipped: true });
+    expect(checkItemsAgainstSubtotal([li('a', 5)], Number.NaN)).toMatchObject({
+      ok: true,
+      skipped: true,
+    });
+  });
+
+  it('uses a generic over hint when no single line matches the extra amount', () => {
+    const r = checkItemsAgainstSubtotal([li('Milk', 3), li('Bread', 4)], 5);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.hint).not.toMatch(/Milk|Bread/);
+      expect(r.hint.toLowerCase()).toMatch(/over|more|high/);
+    }
+  });
 });
