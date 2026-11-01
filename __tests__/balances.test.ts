@@ -204,6 +204,41 @@ describe('computeReceiptShare', () => {
     });
     expect(computeReceiptShare(r, CAROL, SELF)).toBe(0);
   });
+
+  it('any line-item splitWith ignores receipt-level percent/amount/shares values', () => {
+    const lineItems: LineItem[] = [
+      { id: '1', name: 'Wine', amount: 40, category: 'Dining', splitWith: ['self', BOB] },
+      { id: '2', name: 'Pizza', amount: 60, category: 'Dining' },
+    ];
+    const r = baseReceipt({
+      totalAmount: 100,
+      split: {
+        enabled: true,
+        method: 'percent',
+        participantIds: ['self', BOB],
+        values: { self: 10, [BOB]: 90 },
+      },
+      lineItems,
+    });
+    // Wine 50/50 (20 each). Pizza falls back to receipt participants, still
+    // equal (30 each) — not 10/90. Percent values must not leak in.
+    expect(computeReceiptShare(r, BOB, SELF)).toBeCloseTo(50, 5);
+    expect(computeReceiptShare(r, SELF, SELF)).toBeCloseTo(50, 5);
+  });
+
+  it('returns 0 for an unknown split method when no item overrides exist', () => {
+    const r = baseReceipt({
+      totalAmount: 80,
+      split: {
+        enabled: true,
+        method: 'custom' as 'equal',
+        participantIds: ['self', BOB],
+        values: { self: 50, [BOB]: 50 },
+      },
+    });
+    expect(computeReceiptShare(r, BOB, SELF)).toBe(0);
+    expect(computeReceiptShare(r, SELF, SELF)).toBe(0);
+  });
 });
 
 describe('computeReceiptNet', () => {
@@ -224,6 +259,24 @@ describe('computeReceiptNet', () => {
       totalAmount: 100,
       paidBy: SELF,
       split: { enabled: true, method: 'equal', participantIds: ['self', BOB] },
+    });
+    expect(computeReceiptNet(r, SELF, BOB)).toBeCloseTo(50, 5);
+  });
+
+  it('self paid uses line-item override shares, not receipt-level percent', () => {
+    const r = baseReceipt({
+      totalAmount: 100,
+      paidBy: SELF,
+      split: {
+        enabled: true,
+        method: 'percent',
+        participantIds: ['self', BOB],
+        values: { self: 10, [BOB]: 90 },
+      },
+      lineItems: [
+        { id: '1', name: 'Wine', amount: 40, category: 'Dining', splitWith: ['self', BOB] },
+        { id: '2', name: 'Pizza', amount: 60, category: 'Dining' },
+      ],
     });
     expect(computeReceiptNet(r, SELF, BOB)).toBeCloseTo(50, 5);
   });

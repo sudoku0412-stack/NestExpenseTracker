@@ -10,6 +10,7 @@ import {
   periodOverPeriodDelta,
   filterReceiptsInRange,
 } from '../lib/reports';
+import { convertFromUsd } from '../lib/currency';
 import { Receipt } from '../types';
 
 const baseReceipt = (overrides: Partial<Receipt>): Receipt => ({
@@ -585,5 +586,46 @@ describe('receiptsToCsv', () => {
     expect(lines).toHaveLength(2); // header + 1 row
     expect(lines[1]).toContain('Diner');
     expect(lines[1]).toContain('Dining');
+  });
+
+  it('converts USD-canonical amounts into the requested display currency', () => {
+    const csv = receiptsToCsv(
+      [
+        baseReceipt({
+          date: '2026-05-10T00:00:00.000Z',
+          storeName: 'Walmart',
+          totalAmount: 10,
+          subtotalAmount: 8,
+          taxAmount: 2,
+          category: 'Groceries',
+          lineItems: [{ id: '1', name: 'Milk', amount: 8, category: 'Groceries' }],
+        }),
+      ],
+      'CAD',
+    );
+    const row = csv.split('\n')[1];
+    expect(row).toContain(',CAD,');
+    expect(row).toContain(convertFromUsd(10, 'CAD').toFixed(2));
+    expect(row).toContain(convertFromUsd(8, 'CAD').toFixed(2));
+    expect(row).toContain(convertFromUsd(2, 'CAD').toFixed(2));
+    expect(row).not.toMatch(/(^|,)10.00(,|$)/);
+  });
+
+  it('uses 0 decimals for INR so the export matches on-screen money', () => {
+    const csv = receiptsToCsv(
+      [
+        baseReceipt({
+          date: '2026-05-10T00:00:00.000Z',
+          storeName: 'Diner',
+          totalAmount: 10,
+          category: 'Dining',
+        }),
+      ],
+      'INR',
+    );
+    const row = csv.split('\n')[1];
+    expect(row).toContain(',INR,');
+    expect(row).toContain(String(Math.round(convertFromUsd(10, 'INR'))));
+    expect(row).not.toContain(`${Math.round(convertFromUsd(10, 'INR'))}.00`);
   });
 });

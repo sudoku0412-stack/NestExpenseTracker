@@ -170,4 +170,25 @@ describe('deleteCloudUserData', () => {
     expect(mockStore.has('households/h1/savingsGoals/g1')).toBe(true);
     expect(mockStore.has('households/h1')).toBe(true);
   });
+
+  it('clears this user email/phone discovery pointers without touching another uid', async () => {
+    seedHousehold('h1', 'u1', ['u1']);
+    seedDoc('users/u1', { householdId: 'h1' });
+    seedDoc('emailIndex/me@example.com', { uid: 'u1', displayName: 'Me' });
+    seedDoc('phoneIndex/+14165551234', { uid: 'u1', displayName: 'Me' });
+    seedDoc('emailIndex/other@example.com', { uid: 'u2', displayName: 'Other' });
+    seedDoc('phoneIndex/+14165559999', { uid: 'u2', displayName: 'Other' });
+
+    await deleteCloudUserData({
+      uid: 'u1',
+      householdId: 'h1',
+      email: '  Me@Example.com ',
+      phoneE164: '+14165551234',
+    });
+
+    expect(mockStore.has('emailIndex/me@example.com')).toBe(false);
+    expect(mockStore.has('phoneIndex/+14165551234')).toBe(false);
+    expect(mockStore.get('emailIndex/other@example.com')).toMatchObject({ uid: 'u2' });
+    expect(mockStore.get('phoneIndex/+14165559999')).toMatchObject({ uid: 'u2' });
+  });
 });
