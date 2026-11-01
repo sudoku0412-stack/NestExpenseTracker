@@ -196,6 +196,8 @@ import {
   acceptInvite,
   acceptPhoneInviteIfAny,
   addHouseholdMemberByPhone,
+  clearEmailIndex,
+  clearPhoneIndex,
   createHousehold,
   declineInvite,
   deleteHousehold,
@@ -440,6 +442,27 @@ describe('discovery index', () => {
 
   it('lookupUserByPhone returns null when the pointer is missing', async () => {
     await expect(lookupUserByPhone('+14165550000')).resolves.toBeNull();
+  });
+
+  it('clearEmailIndex deletes the lowercased pointer and leaves other emails', async () => {
+    seed('emailIndex/gone@example.com', { uid: 'u1', displayName: 'Gone' });
+    seed('emailIndex/keep@example.com', { uid: 'u2', displayName: 'Keep' });
+
+    await clearEmailIndex('  Gone@Example.com ');
+
+    expect(mockStore.has('emailIndex/gone@example.com')).toBe(false);
+    expect(mockStore.get('emailIndex/keep@example.com')).toMatchObject({ uid: 'u2' });
+    await expect(lookupUserByEmail('gone@example.com')).resolves.toBeNull();
+  });
+
+  it('clearPhoneIndex deletes only that E.164 pointer', async () => {
+    seed('phoneIndex/+14165550001', { uid: 'u1', displayName: 'One' });
+    seed('phoneIndex/+14165550002', { uid: 'u2', displayName: 'Two' });
+
+    await clearPhoneIndex('+14165550001');
+
+    expect(mockStore.has('phoneIndex/+14165550001')).toBe(false);
+    expect(mockStore.get('phoneIndex/+14165550002')).toMatchObject({ uid: 'u2' });
   });
 });
 

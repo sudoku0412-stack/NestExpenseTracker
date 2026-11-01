@@ -46,6 +46,28 @@ describe('deleteAllReceipts', () => {
     expect(goalsDelete).toBeDefined();
     expect(goalsDelete!.params).toEqual(['u-delete']);
   });
+
+  it('wipes every uid-scoped local table used by account delete', async () => {
+    await deleteAllReceipts();
+    const byTable = (name: string) =>
+      runs.find((r) => new RegExp(`DELETE FROM ${name}`, 'i').test(r.sql));
+
+    expect(byTable('line_items')?.sql).toMatch(/receipt_id IN \(SELECT id FROM receipts WHERE user_id = \?\)/i);
+    expect(byTable('line_items')?.params).toEqual(['u-delete']);
+    expect(byTable('receipts')?.params).toEqual(['u-delete']);
+    expect(byTable('receipt_corrections')?.params).toEqual(['u-delete']);
+    expect(byTable('incomes')?.params).toEqual(['u-delete']);
+    expect(byTable('savings_goals')?.params).toEqual(['u-delete']);
+    expect(byTable('investment_snapshots')?.params).toEqual(['u-delete']);
+    expect(byTable('investment_accounts')?.params).toEqual(['u-delete']);
+  });
+
+  it('refuses to wipe data when nobody is signed in', async () => {
+    await setCurrentUserId(null);
+    runs.length = 0;
+    await expect(deleteAllReceipts()).rejects.toThrow(/No authenticated user \(op: deleteAllReceipts\)/);
+    expect(runs).toHaveLength(0);
+  });
 });
 
 describe('deleteAllRowsForHousehold', () => {
