@@ -231,6 +231,57 @@ describe('updateLineItemCategory', () => {
     expect(mockLineItems.find((r) => r.id === 'mine')!.category).toBe('Pets');
     expect(mockLineItems.find((r) => r.id === 'theirs')!.category).toBe('Groceries');
   });
+
+  it('throws when unsigned and does not mutate or shadow-write', async () => {
+    seedReceipt();
+    mockLineItems.push({
+      id: 'mine',
+      receipt_id: 'r1',
+      name: 'A',
+      amount: 1,
+      category: 'Groceries',
+      split_with: null,
+    });
+    await setCurrentUserId(null);
+    await expect(updateLineItemCategory('mine', 'Pets')).rejects.toThrow(/No authenticated user/);
+    expect(mockLineItems[0].category).toBe('Groceries');
+    expect(mockSync).not.toHaveBeenCalled();
+  });
+
+  it('is a local-only write — it must not fire a cloud shadow-write on its own', async () => {
+    seedReceipt();
+    mockLineItems.push({
+      id: 'mine',
+      receipt_id: 'r1',
+      name: 'A',
+      amount: 1,
+      category: 'Groceries',
+      split_with: null,
+    });
+    await updateLineItemCategory('mine', 'Pets');
+    expect(mockLineItems[0].category).toBe('Pets');
+    expect(mockSync).not.toHaveBeenCalled();
+  });
+});
+
+describe('replaceLineItems unsigned', () => {
+  it('throws and leaves items in place when there is no signed-in user', async () => {
+    seedReceipt();
+    mockLineItems.push({
+      id: 'keep',
+      receipt_id: 'r1',
+      name: 'Milk',
+      amount: 4,
+      category: 'Groceries',
+      split_with: null,
+    });
+    await setCurrentUserId(null);
+    await expect(
+      replaceLineItems('r1', [{ id: 'x', name: 'X', amount: 1, category: 'Gas' }]),
+    ).rejects.toThrow(/No authenticated user/);
+    expect(mockLineItems.map((r) => r.id)).toEqual(['keep']);
+    expect(mockSync).not.toHaveBeenCalled();
+  });
 });
 
 describe('hashOcrText / gemini cache', () => {
@@ -251,6 +302,15 @@ describe('hashOcrText / gemini cache', () => {
 describe('item classification cache', () => {
   it('round-trips a cleaned name', async () => {
     expect(await getCachedItemClassification('kibble')).toBeNull();
+    await setCachedItemClassification('kibble', 'Pets', 'remote');
+    expect(await getCachedItemClassification('kibble')).toEqual({
+      category: 'Pets',
+      source: 'remote',
+    });
+  });
+
+  it('ON CONFLICT overwrites category and source for the same cleaned name', async () => {
+    await setCachedItemClassification('kibble', 'Other', 'local');
     await setCachedItemClassification('kibble', 'Pets', 'remote');
     expect(await getCachedItemClassification('kibble')).toEqual({
       category: 'Pets',

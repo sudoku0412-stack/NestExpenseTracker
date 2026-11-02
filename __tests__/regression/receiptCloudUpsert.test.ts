@@ -130,8 +130,22 @@ jest.mock('expo-sqlite', () => ({
       }
       if (!sql.includes('FROM receipts')) return [];
       const uid = (/WHERE id=\?/i.test(sql) ? params[1] : params[0]) as string;
+      const like = /LIKE \?/i.test(sql)
+        ? String(params[1] ?? '')
+            .replace(/^%/, '')
+            .replace(/%$/, '')
+            .toLowerCase()
+        : '';
       return [...mockReceipts.values()]
         .filter((r) => r.user_id === uid && mockMatchesHid(r, sql, params))
+        .filter((r) => {
+          if (!like) return true;
+          return (
+            r.store_name.toLowerCase().includes(like) ||
+            r.category.toLowerCase().includes(like) ||
+            (r.notes ?? '').toLowerCase().includes(like)
+          );
+        })
         .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     }),
     getFirstAsync: jest.fn(async (sql: string, params: unknown[]) => {
@@ -451,6 +465,22 @@ describe('household isolation', () => {
 
     const hits = await searchReceipts('costco');
     expect(hits.map((r) => r.id)).toEqual(['mine']);
+  });
+
+  it('with no active household, list/search/getById stay uid-scoped across this user\'s households', async () => {
+    setCurrentHouseholdId(null);
+    seed({ id: 'hh1-row', store_name: 'Mine HH1', household_id: 'hh1' });
+    seed({ id: 'hh2-row', store_name: 'Mine HH2', household_id: 'hh-other' });
+    seed({ id: 'legacy', store_name: 'Legacy', household_id: null });
+    seed({ id: 'someone-else', store_name: 'Theirs', household_id: 'hh1', user_id: 'user-2' });
+
+    const all = await getAllReceipts();
+    expect(all.map((r) => r.id).sort()).toEqual(['hh1-row', 'hh2-row', 'legacy']);
+    expect(await getReceiptById('someone-else')).toBeNull();
+    expect(await getReceiptById('hh2-row')).toMatchObject({ storeName: 'Mine HH2' });
+
+    const hits = await searchReceipts('mine');
+    expect(hits.map((r) => r.id).sort()).toEqual(['hh1-row', 'hh2-row']);
   });
 
   it('throws when reading receipts with no signed-in user', async () => {
