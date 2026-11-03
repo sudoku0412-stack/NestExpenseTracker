@@ -221,3 +221,41 @@ describe('getRecentIncomeSourceNames', () => {
     ]);
   });
 });
+
+describe('household-unset income isolation', () => {
+  beforeEach(() => {
+    setCurrentHouseholdId(null);
+  });
+
+  it('getAllIncomes still hides other uids and includes this user\'s other-household + NULL-hid rows', async () => {
+    seed({ id: 'mine-hh', user_id: 'user-1', household_id: 'hh1', date: '2026-03-03' });
+    seed({ id: 'mine-other-hh', user_id: 'user-1', household_id: 'hh-other', date: '2026-03-02' });
+    seed({ id: 'mine-null', user_id: 'user-1', household_id: null, date: '2026-03-01' });
+    seed({ id: 'theirs', user_id: 'user-2', household_id: 'hh1', source_name: 'Secret payroll', date: '2026-03-04' });
+
+    const ids = (await getAllIncomes()).map((i) => i.id);
+    expect(ids.sort()).toEqual(['mine-hh', 'mine-null', 'mine-other-hh']);
+  });
+
+  it('searchIncomes still honors LIKE while staying uid-scoped', async () => {
+    seed({ id: 'mine', user_id: 'user-1', household_id: 'hh-other', source_name: 'Acme payroll', notes: null });
+    seed({
+      id: 'theirs',
+      user_id: 'user-2',
+      household_id: null,
+      source_name: 'Acme payroll',
+      notes: 'should never leak',
+    });
+
+    const hits = await searchIncomes('acme');
+    expect(hits.map((i) => i.id)).toEqual(['mine']);
+  });
+
+  it('getIncomeById returns this user\'s other-household row and never another uid', async () => {
+    seed({ id: 'shared-id', user_id: 'user-1', household_id: 'hh-other' });
+    seed({ id: 'other-uid', user_id: 'user-2', household_id: null, source_name: 'Not yours' });
+
+    expect(await getIncomeById('shared-id')).toMatchObject({ id: 'shared-id', sourceName: 'Acme payroll' });
+    expect(await getIncomeById('other-uid')).toBeNull();
+  });
+});

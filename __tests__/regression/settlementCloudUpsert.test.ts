@@ -233,6 +233,30 @@ describe('household isolation', () => {
   });
 });
 
+describe('household-unset settlement isolation', () => {
+  it('getAllSettlements still hides other uids and includes this user\'s other-household + NULL-hid rows', async () => {
+    setCurrentHouseholdId(null);
+    seed({ id: 'mine-hh', user_id: 'user-1', household_id: 'hh1' });
+    seed({ id: 'mine-other-hh', user_id: 'user-1', household_id: 'hh-other' });
+    seed({ id: 'mine-null', user_id: 'user-1', household_id: null });
+    seed({ id: 'theirs', user_id: 'user-2', household_id: 'hh1' });
+
+    const ids = (await getAllSettlements()).map((s) => s.id).sort();
+    expect(ids).toEqual(['mine-hh', 'mine-null', 'mine-other-hh']);
+  });
+
+  it('getAllSettlementsForHousehold stays strict even when the active household is unset', async () => {
+    setCurrentHouseholdId(null);
+    seed({ id: 'hh1', user_id: 'user-1', household_id: 'hh1' });
+    seed({ id: 'legacy', user_id: 'user-1', household_id: null });
+    seed({ id: 'other', user_id: 'user-1', household_id: 'hh-other' });
+    seed({ id: 'theirs', user_id: 'user-2', household_id: 'hh1' });
+
+    const rows = await getAllSettlementsForHousehold('hh1');
+    expect(rows.map((s) => s.id)).toEqual(['hh1']);
+  });
+});
+
 describe('bootstrapHouseholdId settlement backfill', () => {
   it('claims only this user\'s NULL-household settlements', async () => {
     seed({ id: 'legacy', user_id: 'user-1', household_id: null });
