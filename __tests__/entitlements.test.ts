@@ -91,6 +91,11 @@ describe('getIsPremium', () => {
     mockGetCustomerInfo.mockResolvedValue(customerInfoWith([PREMIUM_ENTITLEMENT_ID]));
     expect(await getIsPremium()).toBe(true);
   });
+
+  it('is false when the premium entitlement is missing', async () => {
+    mockGetCustomerInfo.mockResolvedValue(customerInfoWith(['something-else']));
+    expect(await getIsPremium()).toBe(false);
+  });
 });
 
 describe('getManagementUrl', () => {
@@ -123,12 +128,27 @@ describe('purchasePackage', () => {
     const outcome = await purchasePackage({ identifier: 'monthly' } as never);
     expect(outcome).toEqual({ ok: false, userCancelled: false, message: 'store error' });
   });
+
+  it('treats a missing userCancelled flag as a real failure and fills in a message', async () => {
+    mockPurchasePackage.mockRejectedValue({});
+    const outcome = await purchasePackage({ identifier: 'monthly' } as never);
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.userCancelled).toBe(false);
+      expect(outcome.message.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('restorePurchases', () => {
   it('returns the restored premium status', async () => {
     mockRestorePurchases.mockResolvedValue(customerInfoWith([PREMIUM_ENTITLEMENT_ID]));
     expect(await restorePurchases()).toBe(true);
+  });
+
+  it('returns false when restore succeeds but premium is not active', async () => {
+    mockRestorePurchases.mockResolvedValue(customerInfoWith([]));
+    expect(await restorePurchases()).toBe(false);
   });
 });
 
