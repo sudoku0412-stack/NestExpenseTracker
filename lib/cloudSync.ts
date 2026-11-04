@@ -2580,7 +2580,7 @@ export async function migrateLocalReceiptsToCloud(args: {
  * `undefined` to `null` so a nested optional field can never
  * accidentally take down the entire sync.
  */
-function stripUndefinedDeep(value: unknown): unknown {
+export function stripUndefinedDeep(value: unknown): unknown {
   if (value === undefined) return null;
   if (Array.isArray(value)) return value.map(stripUndefinedDeep);
   if (value !== null && typeof value === 'object' && !(value instanceof Date)) {
@@ -2593,7 +2593,7 @@ function stripUndefinedDeep(value: unknown): unknown {
   return value;
 }
 
-function serializeReceipt(
+export function serializeReceipt(
   r: Receipt,
   firestore: FirestoreModule,
 ): Record<string, unknown> {
