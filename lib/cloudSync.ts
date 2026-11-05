@@ -673,20 +673,7 @@ export async function syncIncomeToCloud(income: Income, householdId: string): Pr
       .doc(householdId)
       .collection('incomes')
       .doc(income.id)
-      .set({
-        sourceName: income.sourceName,
-        date: income.date,
-        amountUsd: income.amountUsd,
-        category: income.category,
-        earnedBy: income.earnedBy,
-        notes: income.notes ?? null,
-        originalCurrency: income.originalCurrency ?? null,
-        recurring: income.recurring ?? null,
-        isRecurringOccurrence: income.isRecurringOccurrence ?? false,
-        createdBy: income.createdBy ?? null,
-        createdAt: income.createdAt,
-        updatedAt: income.updatedAt,
-      });
+      .set(serializeIncome(income));
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[cloudSync] syncIncomeToCloud failed:', (e as Error)?.message);
@@ -791,14 +778,7 @@ export async function syncSavingsGoalToCloud(
       .doc(householdId)
       .collection('savingsGoals')
       .doc(goal.id)
-      .set({
-        name: goal.name,
-        targetUsd: goal.targetUsd,
-        allocatedUsd: goal.allocatedUsd,
-        notes: goal.notes ?? null,
-        createdAt: goal.createdAt,
-        updatedAt: goal.updatedAt,
-      });
+      .set(serializeSavingsGoal(goal));
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[cloudSync] syncSavingsGoalToCloud failed:', (e as Error)?.message);
@@ -914,15 +894,7 @@ export async function syncInvestmentAccountToCloud(account: InvestmentAccount, u
       .doc(uid)
       .collection('investmentAccounts')
       .doc(account.id)
-      .set({
-        name: account.name,
-        kind: account.kind,
-        contributedUsd: account.contributedUsd,
-        valueUsd: account.valueUsd,
-        notes: account.notes ?? null,
-        createdAt: account.createdAt,
-        updatedAt: account.updatedAt,
-      });
+      .set(serializeInvestmentAccount(account));
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[cloudSync] syncInvestmentAccountToCloud failed:', (e as Error)?.message);
@@ -938,13 +910,7 @@ export async function syncInvestmentSnapshotToCloud(snapshot: InvestmentSnapshot
       .doc(uid)
       .collection('investmentSnapshots')
       .doc(snapshot.id)
-      .set({
-        accountId: snapshot.accountId,
-        date: snapshot.date,
-        valueUsd: snapshot.valueUsd,
-        contributedUsd: snapshot.contributedUsd,
-        createdAt: snapshot.createdAt,
-      });
+      .set(serializeInvestmentSnapshot(snapshot));
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[cloudSync] syncInvestmentSnapshotToCloud failed:', (e as Error)?.message);
@@ -2591,6 +2557,57 @@ function stripUndefinedDeep(value: unknown): unknown {
     return out;
   }
   return value;
+}
+
+/** Income shadow-write body (same fields as the previous inline `.set()`). */
+export function serializeIncome(income: Income): Record<string, unknown> {
+  return {
+    sourceName: income.sourceName,
+    date: income.date,
+    amountUsd: income.amountUsd,
+    category: income.category,
+    earnedBy: income.earnedBy,
+    notes: income.notes ?? null,
+    originalCurrency: income.originalCurrency ?? null,
+    recurring: income.recurring ?? null,
+    isRecurringOccurrence: income.isRecurringOccurrence ?? false,
+    createdBy: income.createdBy ?? null,
+    createdAt: income.createdAt,
+    updatedAt: income.updatedAt,
+  };
+}
+
+export function serializeSavingsGoal(goal: SavingsGoal): Record<string, unknown> {
+  return {
+    name: goal.name,
+    targetUsd: goal.targetUsd,
+    allocatedUsd: goal.allocatedUsd,
+    notes: goal.notes ?? null,
+    createdAt: goal.createdAt,
+    updatedAt: goal.updatedAt,
+  };
+}
+
+export function serializeInvestmentAccount(account: InvestmentAccount): Record<string, unknown> {
+  return {
+    name: account.name,
+    kind: account.kind,
+    contributedUsd: account.contributedUsd,
+    valueUsd: account.valueUsd,
+    notes: account.notes ?? null,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+  };
+}
+
+export function serializeInvestmentSnapshot(snapshot: InvestmentSnapshot): Record<string, unknown> {
+  return {
+    accountId: snapshot.accountId,
+    date: snapshot.date,
+    valueUsd: snapshot.valueUsd,
+    contributedUsd: snapshot.contributedUsd,
+    createdAt: snapshot.createdAt,
+  };
 }
 
 function serializeReceipt(
