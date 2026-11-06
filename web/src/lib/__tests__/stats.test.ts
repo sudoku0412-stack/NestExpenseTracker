@@ -47,6 +47,23 @@ describe('trend and stores', () => {
     const s = topStores([r({ storeName: 'Costco', totalAmount: 50 }), r({ storeName: 'costco ', totalAmount: 70 }), r({ storeName: 'Aldi', totalAmount: 90 })]);
     expect(s.map((x) => [x.store, x.total, x.count])).toEqual([['Costco', 120, 2], ['Aldi', 90, 1]]);
   });
+  it('falls back to the receipt category when item amounts cancel out', () => {
+    expect(
+      computeBudgetSpend([
+        r({
+          totalAmount: 80,
+          category: 'Dining',
+          lineItems: [
+            { id: 'a', name: 'meal', amount: 10, category: 'Dining' },
+            { id: 'b', name: 'discount', amount: -10, category: 'Dining' },
+          ],
+        }),
+      ]),
+    ).toEqual({ Dining: 80 });
+  });
+  it('labels an empty store as Unknown', () => {
+    expect(topStores([r({ storeName: '  ', totalAmount: 5 })])).toEqual([{ store: 'Unknown', total: 5, count: 1 }]);
+  });
   it('lists only active recurring templates, soonest first', () => {
     const out = upcomingRecurring([
       r({ id: 'late', recurring: { frequency: 'monthly', nextDueDate: '2026-06-01', endDate: '2027-01-01' } }),
