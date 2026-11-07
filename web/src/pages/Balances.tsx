@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { computeMemberBalances, computeReceiptNet, getReceiptsForMemberPair } from '@app/lib/balances';
-import { convertEntryToUsd, convertFromUsd, currencyDecimals } from '@app/lib/currency';
+import { convertFromUsd, currencyDecimals } from '@app/lib/currency';
 import type { HouseholdMember } from '@app/types';
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { dateLabel } from '../lib/stats';
+import { settleAmountUsd, settlementParties } from '../lib/settle';
 import { addSettlement } from '../lib/writes';
 import { useMoney } from '../money';
 
@@ -24,13 +25,12 @@ export default function Balances() {
 
   async function settle(memberUid: string, netUsd: number) {
     if (!householdId) return;
-    const entered = amounts[memberUid];
-    const usd = entered ? convertEntryToUsd(Number(entered), currency) : Math.abs(netUsd);
+    const usd = settleAmountUsd(amounts[memberUid], netUsd, currency);
     if (!(usd > 0)) return setError('Enter an amount greater than zero.');
     setError('');
     try {
-      // They owe you: they pay you. You owe them: you pay them.
-      await (netUsd > 0 ? addSettlement(householdId, memberUid, self, usd) : addSettlement(householdId, self, memberUid, usd));
+      const { fromUid, toUid } = settlementParties(self, memberUid, netUsd);
+      await addSettlement(householdId, fromUid, toUid, usd);
       setAmounts((a) => ({ ...a, [memberUid]: '' }));
     } catch {
       setError('Could not record the payment. Try again.');
