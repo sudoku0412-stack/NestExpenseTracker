@@ -9,11 +9,10 @@ import { Modal, NO_REPEAT, RecurringFields, type RecurringState } from '../compo
 import { useData } from '../data';
 import { db } from '../firebase';
 import { buildSchedule } from '../lib/schedule';
+import { buildSplit, remapSelfId, remapSelfMap, type SplitMethod } from '../lib/splitForm';
+import { roundUsd } from '../lib/writesMoney';
 
-type Method = 'equal' | 'percent' | 'amount' | 'shares';
 interface Item { key: string; name: string; amount: string; category: string }
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Receipt; draft?: Partial<Receipt>; onClose: () => void }) {
   const { user } = useAuth();
@@ -35,9 +34,11 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
   const [notes, setNotes] = useState(src?.notes ?? '');
   const [paidBy, setPaidBy] = useState(receipt?.paidBy ?? user?.uid ?? '');
   const [splitOn, setSplitOn] = useState(Boolean(receipt?.split?.enabled));
-  const [method, setMethod] = useState<Method>(receipt?.split?.method ?? 'equal');
-  const [people, setPeople] = useState<string[]>(receipt?.split?.participantIds?.map((p) => (p === 'self' ? user?.uid ?? p : p)) ?? members.map((m) => m.uid));
-  const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(receipt?.split?.values ?? {}).map(([k, v]) => [k === 'self' ? user?.uid ?? k : k, String(v)])));
+  const [method, setMethod] = useState<SplitMethod>(receipt?.split?.method ?? 'equal');
+  const [people, setPeople] = useState<string[]>(receipt?.split?.participantIds?.map((p) => remapSelfId(p, user?.uid)) ?? members.map((m) => m.uid));
+  const [vals, setVals] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(remapSelfMap(receipt?.split?.values ?? {}, user?.uid)).map(([k, v]) => [k, String(v)])),
+  );
   const [repeat, setRepeat] = useState<RecurringState>(receipt?.recurring ? { enabled: true, frequency: receipt.recurring.frequency, months: '' } : NO_REPEAT);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -55,18 +56,9 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
     if (!(totalN > 0)) return setErr('Enter a total greater than zero.');
     if (tags.length === 0) return setErr('Pick at least one category.');
     if (items.some((i) => !i.name.trim() || !(Number(i.amount) !== 0 && Number.isFinite(Number(i.amount))))) return setErr('Each item needs a name and an amount.');
-    let split: Receipt['split'] | null = null;
-    if (splitOn) {
-      if (people.length < 2) return setErr('Choose at least two people to split with.');
-      const v: Record<string, number> = {};
-      if (method !== 'equal') for (const p of people) v[p] = Number(vals[p]) || 0;
-      if (method === 'percent' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - 100) > 0.01) return setErr('Percentages must add up to 100.');
-      if (method === 'amount' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - totalN) > 0.01) return setErr('Amounts must add up to the total.');
-      if (method === 'shares' && Object.values(v).every((x) => x <= 0)) return setErr('Give at least one person a share.');
-      // Amounts are typed in the entry currency; stored values are USD like the rest of the receipt.
-      const stored = method === 'amount' ? Object.fromEntries(Object.entries(v).map(([k, n]) => [k, round2(convertEntryToUsd(n, currency))])) : v;
-      split = { enabled: true, method, participantIds: people, ...(method === 'equal' ? {} : { values: stored }) };
-    }
+    const splitResult = buildSplit(splitOn, method, people, vals, totalN, (n) => roundUsd(convertEntryToUsd(n, currency)));
+    if ('error' in splitResult) return setErr(splitResult.error);
+    const split = splitResult.split;
     const repeating = buildSchedule(repeat.enabled, repeat.frequency, date, parseInt(repeat.months, 10) || 0, receipt?.recurring?.endDate);
     const now = new Date().toISOString();
     const id = receipt?.id ?? crypto.randomUUID();
@@ -80,8 +72,8 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
           id,
           storeName: store.trim(),
           date: new Date(y, m - 1, d, 12).toISOString(),
-          totalAmount: round2(convertEntryToUsd(totalN, currency)),
-          taxAmount: tax && Number(tax) > 0 ? round2(convertEntryToUsd(Number(tax), currency)) : null,
+          totalAmount: roundUsd(convertEntryToUsd(totalN, currency)),
+          taxAmount: tax && Number(tax) > 0 ? roundUsd(convertEntryToUsd(Number(tax), currency)) : null,
           category: tags[0],
           categoryTags: tags,
           notes: notes.trim() || null,
@@ -89,7 +81,7 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
           recurring: repeating,
           paidBy: paidBy || user.uid,
           originalCurrency: currency,
-          lineItems: items.map((i) => ({ id: i.key, name: i.name.trim(), amount: round2(convertEntryToUsd(Number(i.amount), currency)), category: i.category, splitWith: [] })),
+          lineItems: items.map((i) => ({ id: i.key, name: i.name.trim(), amount: roundUsd(convertEntryToUsd(Number(i.amount), currency)), category: i.category, splitWith: [] })),
           ...(receipt ? {} : { createdBy: user.uid, isRecurringOccurrence: false, rawText: null, imageUri: null, photoUrl: null, subtotalAmount: null, createdAt: now }),
           updatedAt: now,
         },
@@ -137,7 +129,7 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
           <label className="switch-row"><span>Split this expense</span><input type="checkbox" checked={splitOn} onChange={(e) => setSplitOn(e.target.checked)} /></label>
           {splitOn && (
             <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-              <select value={method} onChange={(e) => setMethod(e.target.value as Method)} aria-label="Split method">
+              <select value={method} onChange={(e) => setMethod(e.target.value as SplitMethod)} aria-label="Split method">
                 <option value="equal">Equally</option><option value="percent">By percentage</option><option value="amount">By exact amount</option><option value="shares">By shares</option>
               </select>
               {members.map((m) => (

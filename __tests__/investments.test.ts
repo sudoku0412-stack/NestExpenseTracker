@@ -4,6 +4,8 @@ import {
   applyContribution,
   applyValueUpdate,
   gainLabel,
+  investmentAccountFromCloud,
+  investmentSnapshotFromCloud,
   snapshotBars,
   snapshotOf,
   summarizeInvestments,
@@ -120,5 +122,71 @@ describe('INVESTMENT_KINDS', () => {
   it('lists every kind once', () => {
     expect(new Set(INVESTMENT_KINDS).size).toBe(INVESTMENT_KINDS.length);
     expect(INVESTMENT_KINDS).toContain('other');
+  });
+});
+
+describe('investmentAccountFromCloud / investmentSnapshotFromCloud', () => {
+  const now = '2026-11-08T00:00:00.000Z';
+
+  it('maps a well-formed account and keeps a known kind', () => {
+    expect(
+      investmentAccountFromCloud(
+        'a1',
+        {
+          name: 'TFSA',
+          kind: 'etf',
+          contributedUsd: 1000,
+          valueUsd: 1100,
+          notes: 'rrsp',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-02-01T00:00:00.000Z',
+        },
+        now,
+      ),
+    ).toEqual({
+      id: 'a1',
+      name: 'TFSA',
+      kind: 'etf',
+      contributedUsd: 1000,
+      valueUsd: 1100,
+      notes: 'rrsp',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    });
+  });
+
+  it('falls back unknown kinds to other and missing numbers to 0', () => {
+    expect(investmentAccountFromCloud('a1', { kind: 'hedge-fund' }, now)).toMatchObject({
+      name: '',
+      kind: 'other',
+      contributedUsd: 0,
+      valueUsd: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  it('maps a snapshot and fills missing fields', () => {
+    expect(
+      investmentSnapshotFromCloud(
+        's1',
+        { accountId: 'a1', date: '2026-03-01', valueUsd: 50, contributedUsd: 40, createdAt: 'c' },
+        now,
+      ),
+    ).toEqual({
+      id: 's1',
+      accountId: 'a1',
+      date: '2026-03-01',
+      valueUsd: 50,
+      contributedUsd: 40,
+      createdAt: 'c',
+    });
+    expect(investmentSnapshotFromCloud('s2', {}, now)).toMatchObject({
+      accountId: '',
+      date: '',
+      valueUsd: 0,
+      contributedUsd: 0,
+      createdAt: now,
+    });
   });
 });

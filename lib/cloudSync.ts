@@ -5,7 +5,6 @@ import {
   SavingsGoal,
   HouseholdMember,
   InvestmentAccount,
-  InvestmentKind,
   InvestmentSnapshot,
 } from '../types';
 import {
@@ -21,6 +20,7 @@ import {
   setCloudMigrationDone,
 } from './secureStorage';
 import { notifyLocalDataChanged } from './dataSync';
+import { investmentAccountFromCloud, investmentSnapshotFromCloud } from './investments';
 // setReceiptPhotoUrl is imported lazily inside syncReceiptToCloud to
 // avoid a circular dependency at module load: database.ts imports
 // from cloudSync, and we only need this writeback path from within
@@ -903,8 +903,6 @@ export function subscribeToHouseholdSavingsGoals(
 // SQLite writes shadow-write to the cloud, and a listener applies remote
 // changes back (skipping this device's own pending writes).
 
-const INVESTMENT_KINDS: InvestmentKind[] = ['stocks', 'etf', 'crypto', 'retirement', 'savings', 'other'];
-
 export async function syncInvestmentAccountToCloud(account: InvestmentAccount, uid: string): Promise<void> {
   const firestore = loadFirestore();
   if (!firestore || !uid) return;
@@ -1017,19 +1015,7 @@ export function subscribeToInvestments(uid: string): (() => void) | null {
               continue;
             }
             const d = change.doc.data();
-            await db.upsertInvestmentAccountFromCloud(
-              {
-                id: change.doc.id,
-                name: (d.name as string) || '',
-                kind: INVESTMENT_KINDS.includes(d.kind as InvestmentKind) ? (d.kind as InvestmentKind) : 'other',
-                contributedUsd: (d.contributedUsd as number) || 0,
-                valueUsd: (d.valueUsd as number) || 0,
-                notes: (d.notes as string | null) ?? undefined,
-                createdAt: (d.createdAt as string) || new Date().toISOString(),
-                updatedAt: (d.updatedAt as string) || new Date().toISOString(),
-              },
-              uid,
-            );
+            await db.upsertInvestmentAccountFromCloud(investmentAccountFromCloud(change.doc.id, d), uid);
           } catch (e) {
             // eslint-disable-next-line no-console
             console.warn('[cloudSync] investment account apply failed:', (e as Error)?.message);
@@ -1050,17 +1036,7 @@ export function subscribeToInvestments(uid: string): (() => void) | null {
               continue;
             }
             const d = change.doc.data();
-            await db.upsertInvestmentSnapshotFromCloud(
-              {
-                id: change.doc.id,
-                accountId: (d.accountId as string) || '',
-                date: (d.date as string) || '',
-                valueUsd: (d.valueUsd as number) || 0,
-                contributedUsd: (d.contributedUsd as number) || 0,
-                createdAt: (d.createdAt as string) || new Date().toISOString(),
-              },
-              uid,
-            );
+            await db.upsertInvestmentSnapshotFromCloud(investmentSnapshotFromCloud(change.doc.id, d), uid);
           } catch (e) {
             // eslint-disable-next-line no-console
             console.warn('[cloudSync] investment snapshot apply failed:', (e as Error)?.message);

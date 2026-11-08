@@ -12,6 +12,40 @@ export const INVESTMENT_KINDS: InvestmentKind[] = [
   'other',
 ];
 
+/** Maps a users/{uid}/investmentAccounts Firestore doc onto the local shape.
+ *  Unknown kinds become `other` so a bad write cannot crash the phone or web. */
+export function investmentAccountFromCloud(
+  id: string,
+  d: Record<string, unknown>,
+  nowIso = new Date().toISOString(),
+): InvestmentAccount {
+  return {
+    id,
+    name: (d.name as string) || '',
+    kind: INVESTMENT_KINDS.includes(d.kind as InvestmentKind) ? (d.kind as InvestmentKind) : 'other',
+    contributedUsd: (d.contributedUsd as number) || 0,
+    valueUsd: (d.valueUsd as number) || 0,
+    notes: (d.notes as string | null) ?? undefined,
+    createdAt: (d.createdAt as string) || nowIso,
+    updatedAt: (d.updatedAt as string) || nowIso,
+  };
+}
+
+export function investmentSnapshotFromCloud(
+  id: string,
+  d: Record<string, unknown>,
+  nowIso = new Date().toISOString(),
+): InvestmentSnapshot {
+  return {
+    id,
+    accountId: (d.accountId as string) || '',
+    date: (d.date as string) || '',
+    valueUsd: (d.valueUsd as number) || 0,
+    contributedUsd: (d.contributedUsd as number) || 0,
+    createdAt: (d.createdAt as string) || nowIso,
+  };
+}
+
 export const INVESTMENT_KIND_KEYS: Record<InvestmentKind, TranslationKey> = {
   stocks: 'invKindStocks',
   etf: 'invKindEtf',
