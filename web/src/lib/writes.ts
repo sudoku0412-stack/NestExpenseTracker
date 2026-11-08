@@ -1,5 +1,6 @@
 import { deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { clampBudgetUsd, roundUsd } from './writesMoney';
 
 // Small Firestore writes. Receipt and income forms live in src/forms. Every write
 // that changes a receipt bumps updatedAt: the mobile app ignores a cloud row that
@@ -18,7 +19,7 @@ export const deleteIncome = (householdId: string, id: string) =>
 export const setCategoryBudget = (householdId: string, category: string, amountUsd: number) =>
   setDoc(
     doc(db, 'households', householdId),
-    { budgets: { byCategory: { [category]: Math.max(0, Math.round(amountUsd * 100) / 100) } }, updatedAt: serverTimestamp() },
+    { budgets: { byCategory: { [category]: clampBudgetUsd(amountUsd) } }, updatedAt: serverTimestamp() },
     { merge: true },
   );
 
@@ -31,7 +32,7 @@ export async function addSettlement(householdId: string, fromUid: string, toUid:
   await setDoc(doc(db, 'households', householdId, 'settlements', id), {
     fromUid,
     toUid,
-    amountUsd: Math.round(amountUsd * 100) / 100,
+    amountUsd: roundUsd(amountUsd),
     createdAt: new Date().toISOString(),
   });
 }

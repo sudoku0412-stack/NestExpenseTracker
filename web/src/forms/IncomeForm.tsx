@@ -8,6 +8,7 @@ import { Modal, NO_REPEAT, RecurringFields, type RecurringState } from '../compo
 import { useData } from '../data';
 import { db } from '../firebase';
 import { buildSchedule } from '../lib/schedule';
+import { roundUsd } from '../lib/writesMoney';
 import { INCOME_LABELS } from '../palette';
 
 const TYPES = Object.keys(INCOME_LABELS) as IncomeCategory[];
@@ -42,7 +43,7 @@ export default function IncomeForm({ income, onClose }: { income?: Income; onClo
         {
           sourceName: source.trim(),
           date,
-          amountUsd: Math.round(convertEntryToUsd(n, currency) * 100) / 100,
+          amountUsd: roundUsd(convertEntryToUsd(n, currency)),
           category,
           earnedBy,
           notes: notes.trim() || null,
