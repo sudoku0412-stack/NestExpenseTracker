@@ -8,7 +8,8 @@ import {
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { CurrencyCode } from '@app/lib/currency';
-import type { Income, InvestmentAccount, InvestmentKind, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
+import { mapCloudInvestmentAccount, mapCloudInvestmentSnapshot } from '@app/lib/investmentCloudMap';
+import type { Income, InvestmentAccount, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
 import { useAuth } from './auth';
 import { db } from './firebase';
 
@@ -149,18 +150,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setInvestmentSnapshots([]);
     if (!user) return;
     const base = doc(db, 'users', user.uid);
-    const kinds: InvestmentKind[] = ['stocks', 'etf', 'crypto', 'retirement', 'savings', 'other'];
     const a = onSnapshot(collection(base, 'investmentAccounts'), (snap) =>
-      setInvestments(snap.docs.map((x) => {
-        const d = x.data();
-        return { id: x.id, name: str(d.name), kind: kinds.includes(d.kind) ? d.kind : 'other', contributedUsd: num(d.contributedUsd), valueUsd: num(d.valueUsd), notes: d.notes ?? undefined, createdAt: str(d.createdAt), updatedAt: str(d.updatedAt) };
-      })),
+      setInvestments(snap.docs.map((x) => mapCloudInvestmentAccount(x.id, x.data() as Record<string, unknown>))),
       () => undefined);
     const s = onSnapshot(collection(base, 'investmentSnapshots'), (snap) =>
-      setInvestmentSnapshots(snap.docs.map((x) => {
-        const d = x.data();
-        return { id: x.id, accountId: str(d.accountId), date: str(d.date), valueUsd: num(d.valueUsd), contributedUsd: num(d.contributedUsd), createdAt: str(d.createdAt) };
-      })),
+      setInvestmentSnapshots(snap.docs.map((x) => mapCloudInvestmentSnapshot(x.id, x.data() as Record<string, unknown>))),
       () => undefined);
     return () => { a(); s(); };
   }, [user]);
