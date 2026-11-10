@@ -15,13 +15,39 @@ interface Env {
   REVENUECAT_API_KEY?: string;
 }
 
-const PREMIUM_ENTITLEMENT_ID = 'premium';
+export const PREMIUM_ENTITLEMENT_ID = 'premium';
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
-const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+export const IMAGE_DATA_URL = /^data:image\/(png|jpe?g|webp);base64,/;
 
 type Jwk = JsonWebKey & { kid: string };
 let jwksCache: { keys: Jwk[]; at: number } | null = null;
+
+/** Test hook — the JWKS cache is otherwise 1 hour and would leak across cases. */
+export function resetJwksCache(): void {
+  jwksCache = null;
+}
+
+export function entitlementIsActive(
+  entitlements: Record<string, { expires_date: string | null }> | undefined,
+  nowMs = Date.now(),
+): boolean {
+  const ent = entitlements?.[PREMIUM_ENTITLEMENT_ID];
+  if (!ent) return false;
+  return ent.expires_date === null || new Date(ent.expires_date).getTime() > nowMs;
+}
+
+export function extractJsonObject(text: string): unknown | null {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end < start) return null;
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
 
 const b64urlToBytes = (s: string): Uint8Array => {
   const b = atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '='));
@@ -67,9 +93,7 @@ async function isPremium(uid: string, env: Env): Promise<boolean | null> {
   if (res.status === 404) return false;
   if (!res.ok) return null;
   const body = (await res.json()) as { subscriber?: { entitlements?: Record<string, { expires_date: string | null }> } };
-  const ent = body.subscriber?.entitlements?.[PREMIUM_ENTITLEMENT_ID];
-  if (!ent) return false;
-  return ent.expires_date === null || new Date(ent.expires_date).getTime() > Date.now();
+  return entitlementIsActive(body.subscriber?.entitlements);
 }
 
 const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSON object, no prose:
@@ -119,15 +143,13 @@ export default {
         return json({ error: 'invalid body' }, 400, headers);
       }
       const image = body.image ?? '';
-      if (!/^data:image\/(png|jpe?g|webp);base64,/.test(image)) return json({ error: 'send a PNG, JPEG or WebP data URL' }, 400, headers);
+      if (!IMAGE_DATA_URL.test(image)) return json({ error: 'send a PNG, JPEG or WebP data URL' }, 400, headers);
       if (image.length * 0.75 > MAX_IMAGE_BYTES) return json({ error: 'image too large' }, 413, headers);
       try {
         const out = await env.AI.run(VISION_MODEL, { messages: [{ role: 'user', content: [{ type: 'text', text: PARSE_PROMPT }, { type: 'image_url', image_url: { url: image } }] }], max_tokens: 1500 });
-        const text = out.response ?? '';
-        const start = text.indexOf('{');
-        const end = text.lastIndexOf('}');
-        if (start < 0 || end < start) return json({ error: 'could not read the receipt' }, 422, headers);
-        return json({ receipt: JSON.parse(text.slice(start, end + 1)) }, 200, headers);
+        const receipt = extractJsonObject(out.response ?? '');
+        if (receipt == null) return json({ error: 'could not read the receipt' }, 422, headers);
+        return json({ receipt }, 200, headers);
       } catch {
         return json({ error: 'could not read the receipt' }, 422, headers);
       }

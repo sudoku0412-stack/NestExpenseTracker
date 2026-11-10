@@ -5,42 +5,22 @@ import { formatLocalDate } from '@app/lib/calendarDate';
 import { computeCashflow } from '@app/lib/cashflowStats';
 import { categoryTrends, filterReceiptsInRange, findRecurring, monthlyTrend, periodOverPeriodDelta, receiptsToCsv, topStores } from '@app/lib/reports';
 import { useData } from '../data';
+import { parseYmd, REPORT_PRESETS, reportRange, type ReportPreset } from '../lib/reportRange';
 import { useMoney } from '../money';
 import { SERIES } from '../palette';
-
-type Preset = 'month' | 'last' | '3m' | 'ytd' | '12m' | 'custom';
-const PRESETS: { id: Preset; label: string }[] = [
-  { id: 'month', label: 'This month' }, { id: 'last', label: 'Last month' }, { id: '3m', label: 'Last 3 months' },
-  { id: 'ytd', label: 'Year to date' }, { id: '12m', label: 'Last 12 months' }, { id: 'custom', label: 'Custom' },
-];
-
-function rangeFor(preset: Preset, now: Date): { start: Date; end: Date } {
-  const y = now.getFullYear(), m = now.getMonth();
-  switch (preset) {
-    case 'last': return { start: new Date(y, m - 1, 1), end: new Date(y, m, 0) };
-    case '3m': return { start: new Date(y, m - 2, 1), end: new Date(y, m + 1, 0) };
-    case 'ytd': return { start: new Date(y, 0, 1), end: new Date(y, m + 1, 0) };
-    case '12m': return { start: new Date(y, m - 11, 1), end: new Date(y, m + 1, 0) };
-    default: return { start: new Date(y, m, 1), end: new Date(y, m + 1, 0) };
-  }
-}
-const parseYmd = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 
 export default function Reports() {
   const { receipts, incomes, currency } = useData();
   const fmt = useMoney();
-  const [preset, setPreset] = useState<Preset>('month');
+  const [preset, setPreset] = useState<ReportPreset>('month');
   const [from, setFrom] = useState(formatLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
   const [to, setTo] = useState(formatLocalDate(new Date()));
   const [trendCat, setTrendCat] = useState('');
 
-  const { start, end } = useMemo(() => {
-    if (preset === 'custom') {
-      const s = parseYmd(from), e = parseYmd(to);
-      return s <= e ? { start: s, end: e } : { start: e, end: s };
-    }
-    return rangeFor(preset, new Date());
-  }, [preset, from, to]);
+  const { start, end } = useMemo(
+    () => reportRange(preset, new Date(), from, to),
+    [preset, from, to],
+  );
 
   const r = useMemo(() => {
     const scoped = filterReceiptsInRange(receipts, start, end);
@@ -73,7 +53,7 @@ export default function Reports() {
         <button className="btn" onClick={exportCsv} disabled={r.scoped.length === 0}>⬇ Export CSV</button>
       </div>
       <div className="toolbar">
-        {PRESETS.map((p) => <button key={p.id} className={`chip-btn${preset === p.id ? ' on' : ''}`} onClick={() => setPreset(p.id)}>{p.label}</button>)}
+        {REPORT_PRESETS.map((p) => <button key={p.id} className={`chip-btn${preset === p.id ? ' on' : ''}`} onClick={() => setPreset(p.id)}>{p.label}</button>)}
         {preset === 'custom' && (<><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From" /><input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To" /></>)}
       </div>
 
