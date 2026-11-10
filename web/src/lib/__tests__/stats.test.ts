@@ -19,6 +19,14 @@ describe('computeBudgetSpend', () => {
     expect(out.Recurring).toBe(150);
     expect(out.Groceries).toBe(100);
   });
+  it('falls back to the receipt category when items sum to ~0 (returns, all discounts)', () => {
+    const out = computeBudgetSpend([r({
+      totalAmount: 20,
+      category: 'Dining',
+      lineItems: [{ id: 'a', name: 'void', amount: 0, category: 'Groceries' }, { id: 'b', name: 'void2', amount: 0.001, category: 'Clothing' }],
+    })]);
+    expect(out).toEqual({ Dining: 20 });
+  });
 });
 
 describe('month helpers', () => {
