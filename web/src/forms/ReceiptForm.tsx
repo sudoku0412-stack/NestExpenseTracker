@@ -8,12 +8,11 @@ import { useAuth } from '../auth';
 import { Modal, NO_REPEAT, RecurringFields, type RecurringState } from '../components';
 import { useData } from '../data';
 import { db } from '../firebase';
+import { receiptSaveError, roundUsd2, storedSplit } from '../lib/formValidate';
 import { buildSchedule } from '../lib/schedule';
 
 type Method = 'equal' | 'percent' | 'amount' | 'shares';
 interface Item { key: string; name: string; amount: string; category: string }
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Receipt; draft?: Partial<Receipt>; onClose: () => void }) {
   const { user } = useAuth();
@@ -51,21 +50,12 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
     e.preventDefault();
     if (!householdId || !user) return;
     const totalN = Number(total);
-    if (!store.trim()) return setErr('Enter the store name.');
-    if (!(totalN > 0)) return setErr('Enter a total greater than zero.');
-    if (tags.length === 0) return setErr('Pick at least one category.');
-    if (items.some((i) => !i.name.trim() || !(Number(i.amount) !== 0 && Number.isFinite(Number(i.amount))))) return setErr('Each item needs a name and an amount.');
+    const invalid = receiptSaveError({ store, total: totalN, tags, items, splitOn, method, people, vals });
+    if (invalid) return setErr(invalid);
     let split: Receipt['split'] | null = null;
     if (splitOn) {
-      if (people.length < 2) return setErr('Choose at least two people to split with.');
-      const v: Record<string, number> = {};
-      if (method !== 'equal') for (const p of people) v[p] = Number(vals[p]) || 0;
-      if (method === 'percent' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - 100) > 0.01) return setErr('Percentages must add up to 100.');
-      if (method === 'amount' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - totalN) > 0.01) return setErr('Amounts must add up to the total.');
-      if (method === 'shares' && Object.values(v).every((x) => x <= 0)) return setErr('Give at least one person a share.');
       // Amounts are typed in the entry currency; stored values are USD like the rest of the receipt.
-      const stored = method === 'amount' ? Object.fromEntries(Object.entries(v).map(([k, n]) => [k, round2(convertEntryToUsd(n, currency))])) : v;
-      split = { enabled: true, method, participantIds: people, ...(method === 'equal' ? {} : { values: stored }) };
+      split = storedSplit(method, people, vals, currency);
     }
     const repeating = buildSchedule(repeat.enabled, repeat.frequency, date, parseInt(repeat.months, 10) || 0, receipt?.recurring?.endDate);
     const now = new Date().toISOString();
@@ -80,8 +70,8 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
           id,
           storeName: store.trim(),
           date: new Date(y, m - 1, d, 12).toISOString(),
-          totalAmount: round2(convertEntryToUsd(totalN, currency)),
-          taxAmount: tax && Number(tax) > 0 ? round2(convertEntryToUsd(Number(tax), currency)) : null,
+          totalAmount: roundUsd2(convertEntryToUsd(totalN, currency)),
+          taxAmount: tax && Number(tax) > 0 ? roundUsd2(convertEntryToUsd(Number(tax), currency)) : null,
           category: tags[0],
           categoryTags: tags,
           notes: notes.trim() || null,
@@ -89,7 +79,7 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
           recurring: repeating,
           paidBy: paidBy || user.uid,
           originalCurrency: currency,
-          lineItems: items.map((i) => ({ id: i.key, name: i.name.trim(), amount: round2(convertEntryToUsd(Number(i.amount), currency)), category: i.category, splitWith: [] })),
+          lineItems: items.map((i) => ({ id: i.key, name: i.name.trim(), amount: roundUsd2(convertEntryToUsd(Number(i.amount), currency)), category: i.category, splitWith: [] })),
           ...(receipt ? {} : { createdBy: user.uid, isRecurringOccurrence: false, rawText: null, imageUri: null, photoUrl: null, subtotalAmount: null, createdAt: now }),
           updatedAt: now,
         },
