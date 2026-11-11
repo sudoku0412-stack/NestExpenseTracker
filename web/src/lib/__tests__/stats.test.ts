@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Income, Receipt } from '@app/types';
-import { computeBudgetSpend, dailySeries, inMonth, shiftMonth, topStores, trend, upcomingRecurring } from '../stats';
+import { computeBudgetSpend, dailySeries, dateLabel, daysInMonth, inMonth, shiftMonth, topStores, trend, upcomingRecurring } from '../stats';
 
 const r = (o: Partial<Receipt>): Receipt => ({ id: 'r', storeName: 'Shop', date: '2026-03-05', totalAmount: 100, category: 'Groceries', createdAt: '', updatedAt: '', ...o });
 const inc = (o: Partial<Income>): Income => ({ id: 'i', sourceName: 'Pay', date: '2026-03-01', amountUsd: 1000, category: 'Salary', earnedBy: 'u', createdAt: '', updatedAt: '', ...o });
@@ -18,6 +18,12 @@ describe('computeBudgetSpend', () => {
     const out = computeBudgetSpend([r({ recurring: { frequency: 'monthly', nextDueDate: '2026-04-05', endDate: '2027-01-01' } }), r({ category: 'Recurring', isRecurringOccurrence: true, totalAmount: 50 })]);
     expect(out.Recurring).toBe(150);
     expect(out.Groceries).toBe(100);
+  });
+  it('falls back to the receipt category when line items sum to ~0 so tax is not divided by zero', () => {
+    expect(computeBudgetSpend([r({
+      totalAmount: 8.5,
+      lineItems: [{ id: 'a', name: 'coupon', amount: 0, category: 'Dining' }, { id: 'b', name: 'void', amount: 0, category: 'Dining' }],
+    })])).toEqual({ Groceries: 8.5 });
   });
 });
 
@@ -46,6 +52,17 @@ describe('trend and stores', () => {
   it('groups stores case-insensitively and sorts by total', () => {
     const s = topStores([r({ storeName: 'Costco', totalAmount: 50 }), r({ storeName: 'costco ', totalAmount: 70 }), r({ storeName: 'Aldi', totalAmount: 90 })]);
     expect(s.map((x) => [x.store, x.total, x.count])).toEqual([['Costco', 120, 2], ['Aldi', 90, 1]]);
+  });
+  it('labels blank store names as Unknown', () => {
+    expect(topStores([r({ storeName: '  ', totalAmount: 5 })])[0].store).toBe('Unknown');
+  });
+  it('formats a date-only string in local civil time and passes through garbage', () => {
+    expect(dateLabel('2026-03-05')).toBe('Mar 5, 2026');
+    expect(dateLabel('not-a-date')).toBe('not-a-date');
+  });
+  it('uses the civil calendar for February in a leap year', () => {
+    expect(daysInMonth(2024, 2)).toBe(29);
+    expect(daysInMonth(2026, 2)).toBe(28);
   });
   it('lists only active recurring templates, soonest first', () => {
     const out = upcomingRecurring([

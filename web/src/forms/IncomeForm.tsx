@@ -7,6 +7,7 @@ import { useAuth } from '../auth';
 import { Modal, NO_REPEAT, RecurringFields, type RecurringState } from '../components';
 import { useData } from '../data';
 import { db } from '../firebase';
+import { incomeSaveError } from '../lib/formValidate';
 import { buildSchedule } from '../lib/schedule';
 import { INCOME_LABELS } from '../palette';
 
@@ -30,9 +31,8 @@ export default function IncomeForm({ income, onClose }: { income?: Income; onClo
     e.preventDefault();
     if (!householdId || !user) return;
     const n = Number(amount);
-    if (!source.trim()) return setErr('Enter where the money came from.');
-    if (!(n > 0)) return setErr('Enter an amount greater than zero.');
-    if (!earnedBy) return setErr('Choose who earned it.');
+    const invalid = incomeSaveError(source, n, earnedBy);
+    if (invalid) return setErr(invalid);
     const now = new Date().toISOString();
     const id = income?.id ?? crypto.randomUUID();
     setBusy(true);
