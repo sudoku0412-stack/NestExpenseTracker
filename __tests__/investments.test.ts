@@ -1,5 +1,6 @@
 import {
   INVESTMENT_KINDS,
+  parseInvestmentKind,
   accountGain,
   applyContribution,
   applyValueUpdate,
@@ -120,5 +121,11 @@ describe('INVESTMENT_KINDS', () => {
   it('lists every kind once', () => {
     expect(new Set(INVESTMENT_KINDS).size).toBe(INVESTMENT_KINDS.length);
     expect(INVESTMENT_KINDS).toContain('other');
+  });
+
+  it('maps unknown cloud kinds to other', () => {
+    expect(parseInvestmentKind('etf')).toBe('etf');
+    expect(parseInvestmentKind('bonds')).toBe('other');
+    expect(parseInvestmentKind(undefined)).toBe('other');
   });
 });

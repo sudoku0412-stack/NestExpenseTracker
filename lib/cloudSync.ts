@@ -5,9 +5,9 @@ import {
   SavingsGoal,
   HouseholdMember,
   InvestmentAccount,
-  InvestmentKind,
   InvestmentSnapshot,
 } from '../types';
+import { parseInvestmentKind } from './investments';
 import {
   applyCustomCategories,
   clearPendingCustomCategoryChanges,
@@ -903,7 +903,6 @@ export function subscribeToHouseholdSavingsGoals(
 // SQLite writes shadow-write to the cloud, and a listener applies remote
 // changes back (skipping this device's own pending writes).
 
-const INVESTMENT_KINDS: InvestmentKind[] = ['stocks', 'etf', 'crypto', 'retirement', 'savings', 'other'];
 
 export async function syncInvestmentAccountToCloud(account: InvestmentAccount, uid: string): Promise<void> {
   const firestore = loadFirestore();
@@ -1021,7 +1020,7 @@ export function subscribeToInvestments(uid: string): (() => void) | null {
               {
                 id: change.doc.id,
                 name: (d.name as string) || '',
-                kind: INVESTMENT_KINDS.includes(d.kind as InvestmentKind) ? (d.kind as InvestmentKind) : 'other',
+                kind: parseInvestmentKind(d.kind),
                 contributedUsd: (d.contributedUsd as number) || 0,
                 valueUsd: (d.valueUsd as number) || 0,
                 notes: (d.notes as string | null) ?? undefined,

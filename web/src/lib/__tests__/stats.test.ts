@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Income, Receipt } from '@app/types';
-import { computeBudgetSpend, dailySeries, inMonth, shiftMonth, topStores, trend, upcomingRecurring } from '../stats';
+import { computeBudgetSpend, dailySeries, dateLabel, inMonth, shiftMonth, topStores, trend, upcomingRecurring } from '../stats';
 
 const r = (o: Partial<Receipt>): Receipt => ({ id: 'r', storeName: 'Shop', date: '2026-03-05', totalAmount: 100, category: 'Groceries', createdAt: '', updatedAt: '', ...o });
 const inc = (o: Partial<Income>): Income => ({ id: 'i', sourceName: 'Pay', date: '2026-03-01', amountUsd: 1000, category: 'Salary', earnedBy: 'u', createdAt: '', updatedAt: '', ...o });
@@ -19,6 +19,19 @@ describe('computeBudgetSpend', () => {
     expect(out.Recurring).toBe(150);
     expect(out.Groceries).toBe(100);
   });
+  it('falls back to the receipt category when line items sum to ~0 (discounts cancelling the goods)', () => {
+    const out = computeBudgetSpend([
+      r({
+        category: 'Groceries',
+        totalAmount: 2,
+        lineItems: [
+          { id: 'a', name: 'a', amount: 10, category: 'Clothing' },
+          { id: 'b', name: 'b', amount: -10, category: 'Clothing' },
+        ],
+      }),
+    ]);
+    expect(out).toEqual({ Groceries: 2 });
+  });
 });
 
 describe('month helpers', () => {
@@ -35,6 +48,12 @@ describe('month helpers', () => {
     expect(d[1].spent).toBe(10);
     expect(d[27].total).toBe(15);
   });
+  it('uses 29 days in a leap February', () => {
+    expect(dailySeries([], 2024, 2)).toHaveLength(29);
+  });
+  it('formats a civil date without shifting timezone', () => {
+    expect(dateLabel('2026-03-05')).toBe('Mar 5, 2026');
+  });
 });
 
 describe('trend and stores', () => {
@@ -46,6 +65,7 @@ describe('trend and stores', () => {
   it('groups stores case-insensitively and sorts by total', () => {
     const s = topStores([r({ storeName: 'Costco', totalAmount: 50 }), r({ storeName: 'costco ', totalAmount: 70 }), r({ storeName: 'Aldi', totalAmount: 90 })]);
     expect(s.map((x) => [x.store, x.total, x.count])).toEqual([['Costco', 120, 2], ['Aldi', 90, 1]]);
+    expect(topStores([r({ storeName: '   ' })])[0].store).toBe('Unknown');
   });
   it('lists only active recurring templates, soonest first', () => {
     const out = upcomingRecurring([
