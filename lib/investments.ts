@@ -12,6 +12,11 @@ export const INVESTMENT_KINDS: InvestmentKind[] = [
   'other',
 ];
 
+/** Unknown or missing kinds from Firestore fall back to other, same as the web mapper. */
+export function parseInvestmentKind(kind: unknown): InvestmentKind {
+  return INVESTMENT_KINDS.includes(kind as InvestmentKind) ? (kind as InvestmentKind) : 'other';
+}
+
 export const INVESTMENT_KIND_KEYS: Record<InvestmentKind, TranslationKey> = {
   stocks: 'invKindStocks',
   etf: 'invKindEtf',

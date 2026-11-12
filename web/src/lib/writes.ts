@@ -1,5 +1,6 @@
 import { deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { budgetAmountUsd, goalWrite, investmentWrite, settlementWrite } from './writeShape';
 
 // Small Firestore writes. Receipt and income forms live in src/forms. Every write
 // that changes a receipt bumps updatedAt: the mobile app ignores a cloud row that
@@ -18,7 +19,7 @@ export const deleteIncome = (householdId: string, id: string) =>
 export const setCategoryBudget = (householdId: string, category: string, amountUsd: number) =>
   setDoc(
     doc(db, 'households', householdId),
-    { budgets: { byCategory: { [category]: Math.max(0, Math.round(amountUsd * 100) / 100) } }, updatedAt: serverTimestamp() },
+    { budgets: { byCategory: { [category]: budgetAmountUsd(amountUsd) } }, updatedAt: serverTimestamp() },
     { merge: true },
   );
 
@@ -28,12 +29,7 @@ export const setBudgetAlertsEnabled = (householdId: string, enabled: boolean) =>
 /** Settle up: a ledger entry only, never a receipt. `fromUid` pays `toUid`. */
 export async function addSettlement(householdId: string, fromUid: string, toUid: string, amountUsd: number): Promise<void> {
   const id = crypto.randomUUID();
-  await setDoc(doc(db, 'households', householdId, 'settlements', id), {
-    fromUid,
-    toUid,
-    amountUsd: Math.round(amountUsd * 100) / 100,
-    createdAt: new Date().toISOString(),
-  });
+  await setDoc(doc(db, 'households', householdId, 'settlements', id), settlementWrite(fromUid, toUid, amountUsd, new Date().toISOString()));
 }
 
 export interface GoalInput { name: string; targetUsd: number; allocatedUsd: number; notes?: string }
@@ -41,14 +37,7 @@ export interface GoalInput { name: string; targetUsd: number; allocatedUsd: numb
 export async function saveGoal(householdId: string, goal: GoalInput & { id?: string; createdAt?: string }): Promise<void> {
   const now = new Date().toISOString();
   const id = goal.id ?? crypto.randomUUID();
-  await setDoc(doc(db, 'households', householdId, 'savingsGoals', id), {
-    name: goal.name.trim(),
-    targetUsd: goal.targetUsd,
-    allocatedUsd: Math.max(0, goal.allocatedUsd),
-    notes: goal.notes?.trim() || null,
-    createdAt: goal.createdAt ?? now,
-    updatedAt: now,
-  });
+  await setDoc(doc(db, 'households', householdId, 'savingsGoals', id), goalWrite(goal, now));
 }
 
 export const deleteGoal = (householdId: string, id: string) =>
@@ -61,15 +50,7 @@ export const stopRecurring = (householdId: string, collection: 'receipts' | 'inc
 // Investments are personal: users/{uid}/investmentAccounts and investmentSnapshots
 // (owner-only rules). Same shapes the mobile app writes.
 export async function saveInvestment(uid: string, account: { id: string; name: string; kind: string; contributedUsd: number; valueUsd: number; notes?: string; createdAt: string; updatedAt: string }): Promise<void> {
-  await setDoc(doc(db, 'users', uid, 'investmentAccounts', account.id), {
-    name: account.name.trim(),
-    kind: account.kind,
-    contributedUsd: account.contributedUsd,
-    valueUsd: account.valueUsd,
-    notes: account.notes?.trim() || null,
-    createdAt: account.createdAt,
-    updatedAt: account.updatedAt,
-  });
+  await setDoc(doc(db, 'users', uid, 'investmentAccounts', account.id), investmentWrite(account));
 }
 
 export const saveInvestmentSnapshot = (uid: string, s: { id: string; accountId: string; date: string; valueUsd: number; contributedUsd: number; createdAt: string }) =>
