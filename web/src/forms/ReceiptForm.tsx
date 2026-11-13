@@ -8,6 +8,7 @@ import { useAuth } from '../auth';
 import { Modal, NO_REPEAT, RecurringFields, type RecurringState } from '../components';
 import { useData } from '../data';
 import { db } from '../firebase';
+import { receiptSaveError } from '../lib/formChecks';
 import { buildSchedule } from '../lib/schedule';
 
 type Method = 'equal' | 'percent' | 'amount' | 'shares';
@@ -51,18 +52,12 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
     e.preventDefault();
     if (!householdId || !user) return;
     const totalN = Number(total);
-    if (!store.trim()) return setErr('Enter the store name.');
-    if (!(totalN > 0)) return setErr('Enter a total greater than zero.');
-    if (tags.length === 0) return setErr('Pick at least one category.');
-    if (items.some((i) => !i.name.trim() || !(Number(i.amount) !== 0 && Number.isFinite(Number(i.amount))))) return setErr('Each item needs a name and an amount.');
+    const saveErr = receiptSaveError({ store, total: totalN, tags, items, splitOn, people, method, vals });
+    if (saveErr) return setErr(saveErr);
     let split: Receipt['split'] | null = null;
     if (splitOn) {
-      if (people.length < 2) return setErr('Choose at least two people to split with.');
       const v: Record<string, number> = {};
       if (method !== 'equal') for (const p of people) v[p] = Number(vals[p]) || 0;
-      if (method === 'percent' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - 100) > 0.01) return setErr('Percentages must add up to 100.');
-      if (method === 'amount' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - totalN) > 0.01) return setErr('Amounts must add up to the total.');
-      if (method === 'shares' && Object.values(v).every((x) => x <= 0)) return setErr('Give at least one person a share.');
       // Amounts are typed in the entry currency; stored values are USD like the rest of the receipt.
       const stored = method === 'amount' ? Object.fromEntries(Object.entries(v).map(([k, n]) => [k, round2(convertEntryToUsd(n, currency))])) : v;
       split = { enabled: true, method, participantIds: people, ...(method === 'equal' ? {} : { values: stored }) };

@@ -29,6 +29,10 @@ const b64urlToBytes = (s: string): Uint8Array => {
 };
 const decodeJson = (s: string) => JSON.parse(new TextDecoder().decode(b64urlToBytes(s)));
 
+export function resetJwksCache(): void {
+  jwksCache = null;
+}
+
 async function getKeys(): Promise<Jwk[]> {
   if (jwksCache && Date.now() - jwksCache.at < 60 * 60 * 1000) return jwksCache.keys;
   const res = await fetch(JWKS_URL);
@@ -39,7 +43,7 @@ async function getKeys(): Promise<Jwk[]> {
 }
 
 /** Returns the Firebase uid for a valid ID token, otherwise null. */
-async function verifyIdToken(token: string, projectId: string): Promise<string | null> {
+export async function verifyIdToken(token: string, projectId: string): Promise<string | null> {
   try {
     const [h, p, sig] = token.split('.');
     if (!h || !p || !sig) return null;
@@ -59,7 +63,7 @@ async function verifyIdToken(token: string, projectId: string): Promise<string |
   }
 }
 
-async function isPremium(uid: string, env: Env): Promise<boolean | null> {
+export async function isPremium(uid: string, env: Env): Promise<boolean | null> {
   if (!env.REVENUECAT_API_KEY) return null; // not configured
   const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(uid)}`, {
     headers: { Authorization: `Bearer ${env.REVENUECAT_API_KEY}`, 'Content-Type': 'application/json' },
@@ -78,7 +82,7 @@ const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSO
  "lineItems": [{"name": string, "amount": number}]}
 Amounts are plain numbers in the receipt's own currency. Use a negative amount for discounts. If a value is unreadable use null.`;
 
-function cors(req: Request, env: Env): Record<string, string> {
+export function cors(req: Request, env: Env): Record<string, string> {
   const origin = req.headers.get('Origin') ?? '';
   const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
   return {

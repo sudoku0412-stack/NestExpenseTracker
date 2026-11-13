@@ -5,12 +5,11 @@ import { CURRENCIES, isPremiumCurrency, type CurrencyCode } from '@app/lib/curre
 import { useAuth } from '../auth';
 import { useData } from '../data';
 import { db } from '../firebase';
+import { customCategorySaveError, normalizeCustomCategoryName } from '../lib/formChecks';
 import { setCategoryBudget } from '../lib/writes';
 import { APP_STORE, PLAY_STORE, PremiumGate, usePremium } from '../premium';
 
-// Same limits and colour cycle as lib/customCategories.ts in the mobile app.
-const MAX_CUSTOM = 20;
-const MAX_NAME = 24;
+// Same colour cycle as lib/customCategories.ts in the mobile app.
 const COLORS = ['#D6336C', '#0CA678', '#F08C00', '#7048E8', '#1C7ED6', '#E8590C', '#099268', '#AE3EC9'];
 
 export default function Settings() {
@@ -24,12 +23,9 @@ export default function Settings() {
   async function add(e: FormEvent) {
     e.preventDefault();
     if (!householdId) return;
-    const clean = name.trim().replace(/\s+/g, ' ');
-    if (!clean) return setErr('Enter a name.');
-    if (clean.length > MAX_NAME) return setErr(`Keep it to ${MAX_NAME} characters or fewer.`);
-    if (customCategories.length >= MAX_CUSTOM) return setErr(`You can have up to ${MAX_CUSTOM} custom categories.`);
-    const taken = new Set([...(ALL_CATEGORIES as string[]), ...customCategories.map((c) => c.name)].map((n) => n.toLowerCase()));
-    if (taken.has(clean.toLowerCase())) return setErr('A category with that name already exists.');
+    const saveErr = customCategorySaveError(name, customCategories.map((c) => c.name), ALL_CATEGORIES as string[]);
+    if (saveErr) return setErr(saveErr);
+    const clean = normalizeCustomCategoryName(name);
     setErr('');
     setBusy(true);
     try {
