@@ -19,6 +19,20 @@ describe('computeBudgetSpend', () => {
     expect(out.Recurring).toBe(150);
     expect(out.Groceries).toBe(100);
   });
+  it('falls back to the receipt category when items do not sum to a positive amount', () => {
+    expect(computeBudgetSpend([r({ totalAmount: 20, category: 'Other', lineItems: [{ id: 'z', name: 'z', amount: 0, category: 'Gas' }] })])).toEqual({ Other: 20 });
+  });
+  it('a discount line reduces its category and the parts still sum to the total', () => {
+    const out = computeBudgetSpend([r({ totalAmount: 90, lineItems: [{ id: 'a', name: 'a', amount: 100, category: 'Groceries' }, { id: 'b', name: 'b', amount: -10, category: 'Clothing' }] })]);
+    expect(out.Groceries).toBeCloseTo(100, 5);
+    expect(out.Clothing).toBeCloseTo(-10, 5);
+    expect(out.Groceries + out.Clothing).toBeCloseTo(90, 5);
+  });
+  it('items without their own category fall back to the receipt category', () => {
+    const out = computeBudgetSpend([r({ category: 'Dining', lineItems: [{ id: 'a', name: 'a', amount: 50 }, { id: 'b', name: 'b', amount: 50, category: 'Gas' }] })]);
+    expect(out.Dining).toBeCloseTo(50, 5);
+    expect(out.Gas).toBeCloseTo(50, 5);
+  });
 });
 
 describe('month helpers', () => {

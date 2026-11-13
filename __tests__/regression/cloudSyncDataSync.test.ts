@@ -100,6 +100,19 @@ function makeCollection(path: string) {
       }
       return { docs };
     }),
+    where: (field: string, op: string, value: unknown) => ({
+      get: jest.fn(async () => {
+        const prefix = `${path}/`;
+        const docs = [];
+        for (const [key, data] of mockStore) {
+          if (!key.startsWith(prefix)) continue;
+          const rest = key.slice(prefix.length);
+          if (rest.includes('/')) continue;
+          if (op === '==' && data[field] === value) docs.push(makeSnap(key));
+        }
+        return { docs };
+      }),
+    }),
     onSnapshot: jest.fn((onNext: SnapshotNext) => {
       const list = collectionListeners.get(path) ?? [];
       list.push(onNext);
@@ -178,6 +191,12 @@ const mockUpsertIncomeFromCloud = jest.fn();
 const mockDeleteIncomeFromCloud = jest.fn();
 const mockUpsertSavingsGoalFromCloud = jest.fn();
 const mockDeleteSavingsGoalFromCloud = jest.fn();
+const mockUpsertInvestmentAccountFromCloud = jest.fn();
+const mockDeleteInvestmentAccountFromCloud = jest.fn();
+const mockUpsertInvestmentSnapshotFromCloud = jest.fn();
+const mockDeleteInvestmentSnapshotFromCloud = jest.fn();
+const mockGetAllInvestmentAccounts = jest.fn(async () => []);
+const mockGetAllInvestmentSnapshots = jest.fn(async () => []);
 
 jest.mock('../../lib/database', () => ({
   upsertReceiptFromCloud: (...args: unknown[]) => mockUpsertReceiptFromCloud(...args),
@@ -188,6 +207,12 @@ jest.mock('../../lib/database', () => ({
   deleteIncomeFromCloud: (...args: unknown[]) => mockDeleteIncomeFromCloud(...args),
   upsertSavingsGoalFromCloud: (...args: unknown[]) => mockUpsertSavingsGoalFromCloud(...args),
   deleteSavingsGoalFromCloud: (...args: unknown[]) => mockDeleteSavingsGoalFromCloud(...args),
+  upsertInvestmentAccountFromCloud: (...args: unknown[]) => mockUpsertInvestmentAccountFromCloud(...args),
+  deleteInvestmentAccountFromCloud: (...args: unknown[]) => mockDeleteInvestmentAccountFromCloud(...args),
+  upsertInvestmentSnapshotFromCloud: (...args: unknown[]) => mockUpsertInvestmentSnapshotFromCloud(...args),
+  deleteInvestmentSnapshotFromCloud: (...args: unknown[]) => mockDeleteInvestmentSnapshotFromCloud(...args),
+  getAllInvestmentAccounts: (...args: unknown[]) => mockGetAllInvestmentAccounts(...args),
+  getAllInvestmentSnapshots: (...args: unknown[]) => mockGetAllInvestmentSnapshots(...args),
 }));
 
 import { Receipt, Income, Settlement } from '../../types';
@@ -199,6 +224,7 @@ import {
   subscribeToHouseholdIncomes,
   subscribeToHouseholdReceipts,
   subscribeToHouseholdSettlements,
+  subscribeToInvestments,
   syncIncomeDeletionToCloud,
   syncIncomeToCloud,
   syncPhoneToCloud,
@@ -206,6 +232,9 @@ import {
   syncReceiptDeletionToCloud,
   syncReceiptToCloud,
   syncSavingsGoalDeletionToCloud,
+  syncInvestmentAccountDeletionToCloud,
+  syncInvestmentAccountToCloud,
+  syncInvestmentSnapshotToCloud,
   syncSettlementToCloud,
   uploadReceiptPhoto,
 } from '../../lib/cloudSync';
@@ -266,6 +295,12 @@ beforeEach(() => {
   mockDeleteIncomeFromCloud.mockResolvedValue(undefined);
   mockUpsertSavingsGoalFromCloud.mockResolvedValue(undefined);
   mockDeleteSavingsGoalFromCloud.mockResolvedValue(undefined);
+  mockUpsertInvestmentAccountFromCloud.mockResolvedValue(undefined);
+  mockDeleteInvestmentAccountFromCloud.mockResolvedValue(undefined);
+  mockUpsertInvestmentSnapshotFromCloud.mockResolvedValue(undefined);
+  mockDeleteInvestmentSnapshotFromCloud.mockResolvedValue(undefined);
+  mockGetAllInvestmentAccounts.mockResolvedValue([]);
+  mockGetAllInvestmentSnapshots.mockResolvedValue([]);
   mockPutFile.mockResolvedValue(undefined);
   mockGetDownloadURL.mockResolvedValue('https://cdn.example/photo.jpg');
 });
@@ -520,6 +555,58 @@ describe('household snapshot listeners', () => {
     );
   });
 
+  it('investment listeners skip pending local writes, coerce unknown kinds, delete removals, and never touch a household path', async () => {
+    expect(subscribeToInvestments('')).toBeNull();
+    const unsub = subscribeToInvestments('u1');
+    expect(unsub).toEqual(expect.any(Function));
+
+    fireCollection('users/u1/investmentAccounts', [
+      {
+        type: 'modified',
+        id: 'local-pending',
+        data: { name: 'Skip', kind: 'etf' },
+        hasPendingWrites: true,
+      },
+      {
+        type: 'added',
+        id: 'remote',
+        data: {
+          name: 'TFSA',
+          kind: 'not-a-kind',
+          contributedUsd: 100,
+          valueUsd: 120,
+          notes: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-02-01T00:00:00.000Z',
+        },
+      },
+      { type: 'removed', id: 'gone' },
+    ]);
+    fireCollection('users/u1/investmentSnapshots', [
+      {
+        type: 'added',
+        id: 'snap-1',
+        data: { accountId: 'remote', date: '2026-02-01', valueUsd: 120, contributedUsd: 100, createdAt: '2026-02-01T00:00:00.000Z' },
+      },
+      { type: 'removed', id: 'snap-old' },
+    ]);
+    await flush();
+    await flush();
+
+    expect(mockUpsertInvestmentAccountFromCloud).toHaveBeenCalledTimes(1);
+    expect(mockUpsertInvestmentAccountFromCloud).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'remote', name: 'TFSA', kind: 'other', contributedUsd: 100, valueUsd: 120 }),
+      'u1',
+    );
+    expect(mockDeleteInvestmentAccountFromCloud).toHaveBeenCalledWith('gone', 'u1');
+    expect(mockUpsertInvestmentSnapshotFromCloud).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'snap-1', accountId: 'remote', date: '2026-02-01', valueUsd: 120 }),
+      'u1',
+    );
+    expect(mockDeleteInvestmentSnapshotFromCloud).toHaveBeenCalledWith('snap-old', 'u1');
+    expect(mockNotifyLocalDataChanged).toHaveBeenCalled();
+  });
+
   it('budget listener skips this device pending write and applies remote budgets', async () => {
     subscribeToHouseholdBudgets('hh1');
     const handlers = docListeners.get('households/hh1') ?? [];
@@ -542,6 +629,75 @@ describe('household snapshot listeners', () => {
       alertsEnabled: true,
     });
     expect(mockNotifyLocalDataChanged).toHaveBeenCalled();
+  });
+});
+
+describe('investment shadow writes', () => {
+  const account = {
+    id: 'a1',
+    name: 'TFSA',
+    kind: 'etf' as const,
+    contributedUsd: 1000,
+    valueUsd: 1200,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  it('writes accounts and snapshots under users/{uid}, never a household collection', async () => {
+    await syncInvestmentAccountToCloud(account, 'u1');
+    await syncInvestmentSnapshotToCloud(
+      { id: 's1', accountId: 'a1', date: '2026-02-01', valueUsd: 1300, contributedUsd: 1000, createdAt: '2026-02-01T00:00:00.000Z' },
+      'u1',
+    );
+    expect(mockStore.get('users/u1/investmentAccounts/a1')).toEqual({
+      name: 'TFSA',
+      kind: 'etf',
+      contributedUsd: 1000,
+      valueUsd: 1200,
+      notes: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(mockStore.get('users/u1/investmentSnapshots/s1')).toEqual({
+      accountId: 'a1',
+      date: '2026-02-01',
+      valueUsd: 1300,
+      contributedUsd: 1000,
+      createdAt: '2026-02-01T00:00:00.000Z',
+    });
+    expect([...mockStore.keys()].some((k) => k.includes('households'))).toBe(false);
+  });
+
+  it('deletes matching snapshots before the account', async () => {
+    seed('users/u1/investmentAccounts/a1', { name: 'TFSA' });
+    seed('users/u1/investmentSnapshots/s1', { accountId: 'a1' });
+    seed('users/u1/investmentSnapshots/s-other', { accountId: 'a2' });
+    await syncInvestmentAccountDeletionToCloud('a1', 'u1');
+    expect(mockStore.has('users/u1/investmentAccounts/a1')).toBe(false);
+    expect(mockStore.has('users/u1/investmentSnapshots/s1')).toBe(false);
+    expect(mockStore.has('users/u1/investmentSnapshots/s-other')).toBe(true);
+  });
+
+  it('upload-missing path (via subscribe) only pushes local ids the cloud does not already have', async () => {
+    seed('users/u1/investmentAccounts/a1', { name: 'already' });
+    mockGetAllInvestmentAccounts.mockResolvedValue([
+      account,
+      { ...account, id: 'a2', name: 'Crypto', kind: 'crypto' },
+    ]);
+    mockGetAllInvestmentSnapshots.mockResolvedValue([
+      { id: 's-new', accountId: 'a2', date: '2026-03-01', valueUsd: 1, contributedUsd: 1, createdAt: 'c' },
+    ]);
+    subscribeToInvestments('u1');
+    await flush();
+    await flush();
+    expect(mockStore.get('users/u1/investmentAccounts/a2')).toEqual(
+      expect.objectContaining({ name: 'Crypto', kind: 'crypto' }),
+    );
+    expect(mockStore.get('users/u1/investmentSnapshots/s-new')).toEqual(
+      expect.objectContaining({ accountId: 'a2', date: '2026-03-01' }),
+    );
+    // Existing cloud account was not overwritten.
+    expect(mockStore.get('users/u1/investmentAccounts/a1')).toEqual({ name: 'already' });
   });
 });
 
