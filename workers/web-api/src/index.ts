@@ -15,19 +15,57 @@ interface Env {
   REVENUECAT_API_KEY?: string;
 }
 
-const PREMIUM_ENTITLEMENT_ID = 'premium';
+export const PREMIUM_ENTITLEMENT_ID = 'premium';
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
-const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
 type Jwk = JsonWebKey & { kid: string };
 let jwksCache: { keys: Jwk[]; at: number } | null = null;
+
+export function resetJwksCache(): void {
+  jwksCache = null;
+}
 
 const b64urlToBytes = (s: string): Uint8Array => {
   const b = atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '='));
   return Uint8Array.from(b, (c) => c.charCodeAt(0));
 };
 const decodeJson = (s: string) => JSON.parse(new TextDecoder().decode(b64urlToBytes(s)));
+
+export function jwtClaimsValid(claims: Record<string, unknown>, projectId: string, nowSec: number): boolean {
+  if (claims.aud !== projectId || claims.iss !== `https://securetoken.google.com/${projectId}`) return false;
+  if (typeof claims.exp !== 'number' || claims.exp < nowSec || typeof claims.sub !== 'string' || !claims.sub) return false;
+  return true;
+}
+
+export function premiumFromEntitlement(ent: { expires_date: string | null } | undefined, nowMs: number): boolean {
+  if (!ent) return false;
+  return ent.expires_date === null || new Date(ent.expires_date).getTime() > nowMs;
+}
+
+export function checkReceiptImage(image: string, maxBytes = MAX_IMAGE_BYTES): 'ok' | 'type' | 'size' {
+  if (!/^data:image\/(png|jpe?g|webp);base64,/.test(image)) return 'type';
+  if (image.length * 0.75 > maxBytes) return 'size';
+  return 'ok';
+}
+
+export function extractJsonObject(text: string): unknown | null {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end < start) return null;
+  return JSON.parse(text.slice(start, end + 1));
+}
+
+export function corsHeaders(origin: string, allowedCsv: string): Record<string, string> {
+  const allowed = allowedCsv.split(',').map((s) => s.trim());
+  return {
+    'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    Vary: 'Origin',
+  };
+}
 
 async function getKeys(): Promise<Jwk[]> {
   if (jwksCache && Date.now() - jwksCache.at < 60 * 60 * 1000) return jwksCache.keys;
@@ -47,12 +85,11 @@ async function verifyIdToken(token: string, projectId: string): Promise<string |
     const claims = decodeJson(p);
     if (header.alg !== 'RS256') return null;
     const now = Math.floor(Date.now() / 1000);
-    if (claims.aud !== projectId || claims.iss !== `https://securetoken.google.com/${projectId}`) return null;
-    if (typeof claims.exp !== 'number' || claims.exp < now || typeof claims.sub !== 'string' || !claims.sub) return null;
+    if (!jwtClaimsValid(claims, projectId, now)) return null;
     const jwk = (await getKeys()).find((k) => k.kid === header.kid);
     if (!jwk) return null;
     const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
-    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlToBytes(sig), new TextEncoder().encode(`${h}.${p}`));
+    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlToBytes(sig) as BufferSource, new TextEncoder().encode(`${h}.${p}`));
     return ok ? (claims.sub as string) : null;
   } catch {
     return null;
@@ -68,8 +105,7 @@ async function isPremium(uid: string, env: Env): Promise<boolean | null> {
   if (!res.ok) return null;
   const body = (await res.json()) as { subscriber?: { entitlements?: Record<string, { expires_date: string | null }> } };
   const ent = body.subscriber?.entitlements?.[PREMIUM_ENTITLEMENT_ID];
-  if (!ent) return false;
-  return ent.expires_date === null || new Date(ent.expires_date).getTime() > Date.now();
+  return premiumFromEntitlement(ent, Date.now()) || false;
 }
 
 const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSON object, no prose:
@@ -79,14 +115,7 @@ const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSO
 Amounts are plain numbers in the receipt's own currency. Use a negative amount for discounts. If a value is unreadable use null.`;
 
 function cors(req: Request, env: Env): Record<string, string> {
-  const origin = req.headers.get('Origin') ?? '';
-  const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
-  return {
-    'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    Vary: 'Origin',
-  };
+  return corsHeaders(req.headers.get('Origin') ?? '', env.ALLOWED_ORIGINS);
 }
 
 const json = (data: unknown, status: number, headers: Record<string, string>) =>
@@ -119,15 +148,14 @@ export default {
         return json({ error: 'invalid body' }, 400, headers);
       }
       const image = body.image ?? '';
-      if (!/^data:image\/(png|jpe?g|webp);base64,/.test(image)) return json({ error: 'send a PNG, JPEG or WebP data URL' }, 400, headers);
-      if (image.length * 0.75 > MAX_IMAGE_BYTES) return json({ error: 'image too large' }, 413, headers);
+      const imageOk = checkReceiptImage(image);
+      if (imageOk === 'type') return json({ error: 'send a PNG, JPEG or WebP data URL' }, 400, headers);
+      if (imageOk === 'size') return json({ error: 'image too large' }, 413, headers);
       try {
         const out = await env.AI.run(VISION_MODEL, { messages: [{ role: 'user', content: [{ type: 'text', text: PARSE_PROMPT }, { type: 'image_url', image_url: { url: image } }] }], max_tokens: 1500 });
-        const text = out.response ?? '';
-        const start = text.indexOf('{');
-        const end = text.lastIndexOf('}');
-        if (start < 0 || end < start) return json({ error: 'could not read the receipt' }, 422, headers);
-        return json({ receipt: JSON.parse(text.slice(start, end + 1)) }, 200, headers);
+        const parsed = extractJsonObject(out.response ?? '');
+        if (parsed === null) return json({ error: 'could not read the receipt' }, 422, headers);
+        return json({ receipt: parsed }, 200, headers);
       } catch {
         return json({ error: 'could not read the receipt' }, 422, headers);
       }
