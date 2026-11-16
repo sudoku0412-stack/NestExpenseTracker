@@ -15,13 +15,19 @@ interface Env {
   REVENUECAT_API_KEY?: string;
 }
 
-const PREMIUM_ENTITLEMENT_ID = 'premium';
+export const PREMIUM_ENTITLEMENT_ID = 'premium';
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
-const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+export const RECEIPT_IMAGE_RE = /^data:image\/(png|jpe?g|webp);base64,/;
 
 type Jwk = JsonWebKey & { kid: string };
 let jwksCache: { keys: Jwk[]; at: number } | null = null;
+
+/** Test-only: drop the JWKS cache so each case can stub a different key set. */
+export function resetJwksCache(): void {
+  jwksCache = null;
+}
 
 const b64urlToBytes = (s: string): Uint8Array => {
   const b = atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '='));
@@ -39,7 +45,7 @@ async function getKeys(): Promise<Jwk[]> {
 }
 
 /** Returns the Firebase uid for a valid ID token, otherwise null. */
-async function verifyIdToken(token: string, projectId: string): Promise<string | null> {
+export async function verifyIdToken(token: string, projectId: string): Promise<string | null> {
   try {
     const [h, p, sig] = token.split('.');
     if (!h || !p || !sig) return null;
@@ -59,6 +65,15 @@ async function verifyIdToken(token: string, projectId: string): Promise<string |
   }
 }
 
+/** Lifetime (null expiry) or a date still in the future counts as Premium. */
+export function entitlementIsActive(
+  ent: { expires_date: string | null } | undefined,
+  nowMs = Date.now(),
+): boolean {
+  if (!ent) return false;
+  return ent.expires_date === null || new Date(ent.expires_date).getTime() > nowMs;
+}
+
 async function isPremium(uid: string, env: Env): Promise<boolean | null> {
   if (!env.REVENUECAT_API_KEY) return null; // not configured
   const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(uid)}`, {
@@ -67,9 +82,26 @@ async function isPremium(uid: string, env: Env): Promise<boolean | null> {
   if (res.status === 404) return false;
   if (!res.ok) return null;
   const body = (await res.json()) as { subscriber?: { entitlements?: Record<string, { expires_date: string | null }> } };
-  const ent = body.subscriber?.entitlements?.[PREMIUM_ENTITLEMENT_ID];
-  if (!ent) return false;
-  return ent.expires_date === null || new Date(ent.expires_date).getTime() > Date.now();
+  return entitlementIsActive(body.subscriber?.entitlements?.[PREMIUM_ENTITLEMENT_ID]);
+}
+
+/** Reject anything that is not a PNG/JPEG/WebP data URL under MAX_IMAGE_BYTES. */
+export function receiptImageError(image: string): { status: number; error: string } | null {
+  if (!RECEIPT_IMAGE_RE.test(image)) return { status: 400, error: 'send a PNG, JPEG or WebP data URL' };
+  if (image.length * 0.75 > MAX_IMAGE_BYTES) return { status: 413, error: 'image too large' };
+  return null;
+}
+
+/** First JSON object in model output (vision models wrap JSON in prose). */
+export function extractJsonObject(text: string): unknown | null {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end < start) return null;
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
 }
 
 const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSON object, no prose:
@@ -78,7 +110,7 @@ const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSO
  "lineItems": [{"name": string, "amount": number}]}
 Amounts are plain numbers in the receipt's own currency. Use a negative amount for discounts. If a value is unreadable use null.`;
 
-function cors(req: Request, env: Env): Record<string, string> {
+export function cors(req: Request, env: Env): Record<string, string> {
   const origin = req.headers.get('Origin') ?? '';
   const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
   return {
@@ -119,15 +151,13 @@ export default {
         return json({ error: 'invalid body' }, 400, headers);
       }
       const image = body.image ?? '';
-      if (!/^data:image\/(png|jpe?g|webp);base64,/.test(image)) return json({ error: 'send a PNG, JPEG or WebP data URL' }, 400, headers);
-      if (image.length * 0.75 > MAX_IMAGE_BYTES) return json({ error: 'image too large' }, 413, headers);
+      const imageErr = receiptImageError(image);
+      if (imageErr) return json({ error: imageErr.error }, imageErr.status, headers);
       try {
         const out = await env.AI.run(VISION_MODEL, { messages: [{ role: 'user', content: [{ type: 'text', text: PARSE_PROMPT }, { type: 'image_url', image_url: { url: image } }] }], max_tokens: 1500 });
-        const text = out.response ?? '';
-        const start = text.indexOf('{');
-        const end = text.lastIndexOf('}');
-        if (start < 0 || end < start) return json({ error: 'could not read the receipt' }, 422, headers);
-        return json({ receipt: JSON.parse(text.slice(start, end + 1)) }, 200, headers);
+        const parsed = extractJsonObject(out.response ?? '');
+        if (parsed === null) return json({ error: 'could not read the receipt' }, 422, headers);
+        return json({ receipt: parsed }, 200, headers);
       } catch {
         return json({ error: 'could not read the receipt' }, 422, headers);
       }

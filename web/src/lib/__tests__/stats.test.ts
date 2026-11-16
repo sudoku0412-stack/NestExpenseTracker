@@ -9,6 +9,19 @@ describe('computeBudgetSpend', () => {
   it('attributes a receipt without items to its own category', () => {
     expect(computeBudgetSpend([r({})])).toEqual({ Groceries: 100 });
   });
+  it('falls back to the receipt category when line items sum to ~0 (all discounts)', () => {
+    expect(
+      computeBudgetSpend([
+        r({
+          totalAmount: 20,
+          lineItems: [
+            { id: 'a', name: 'Thing', amount: 20, category: 'Electronics' },
+            { id: 'b', name: 'Coupon', amount: -20, category: 'Other' },
+          ],
+        }),
+      ]),
+    ).toEqual({ Groceries: 20 });
+  });
   it('splits the receipt total across item categories in proportion, tax included', () => {
     const out = computeBudgetSpend([r({ totalAmount: 110, lineItems: [{ id: 'a', name: 'a', amount: 60, category: 'Groceries' }, { id: 'b', name: 'b', amount: 40, category: 'Clothing' }] })]);
     expect(out.Groceries).toBeCloseTo(66, 5);
@@ -46,6 +59,9 @@ describe('trend and stores', () => {
   it('groups stores case-insensitively and sorts by total', () => {
     const s = topStores([r({ storeName: 'Costco', totalAmount: 50 }), r({ storeName: 'costco ', totalAmount: 70 }), r({ storeName: 'Aldi', totalAmount: 90 })]);
     expect(s.map((x) => [x.store, x.total, x.count])).toEqual([['Costco', 120, 2], ['Aldi', 90, 1]]);
+  });
+  it('labels a blank store Unknown', () => {
+    expect(topStores([r({ storeName: '  ' })])[0].store).toBe('Unknown');
   });
   it('lists only active recurring templates, soonest first', () => {
     const out = upcomingRecurring([
