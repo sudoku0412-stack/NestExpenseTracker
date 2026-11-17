@@ -14,6 +14,14 @@ describe('computeBudgetSpend', () => {
     expect(out.Groceries).toBeCloseTo(66, 5);
     expect(out.Clothing).toBeCloseTo(44, 5);
   });
+  it('falls back to the receipt category when items sum to ~0 (discounts only)', () => {
+    const out = computeBudgetSpend([r({
+      totalAmount: 50,
+      lineItems: [{ id: 'a', name: 'coupon', amount: -5, category: 'Dining' }, { id: 'b', name: 'offset', amount: 5, category: 'Dining' }],
+    })]);
+    expect(out).toEqual({ Groceries: 50 });
+  });
+
   it('adds recurring expenses to the Recurring key too, without double counting a Recurring-category receipt', () => {
     const out = computeBudgetSpend([r({ recurring: { frequency: 'monthly', nextDueDate: '2026-04-05', endDate: '2027-01-01' } }), r({ category: 'Recurring', isRecurringOccurrence: true, totalAmount: 50 })]);
     expect(out.Recurring).toBe(150);
