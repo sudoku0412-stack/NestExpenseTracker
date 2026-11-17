@@ -5,6 +5,9 @@ import { db } from '../firebase';
 // that changes a receipt bumps updatedAt: the mobile app ignores a cloud row that
 // is not newer than its local copy.
 
+export const roundUsd = (n: number): number => Math.round(n * 100) / 100;
+export const clampNonNegUsd = (n: number): number => Math.max(0, roundUsd(n));
+
 export const deleteReceipt = (householdId: string, id: string) =>
   deleteDoc(doc(db, 'households', householdId, 'receipts', id));
 
@@ -18,7 +21,7 @@ export const deleteIncome = (householdId: string, id: string) =>
 export const setCategoryBudget = (householdId: string, category: string, amountUsd: number) =>
   setDoc(
     doc(db, 'households', householdId),
-    { budgets: { byCategory: { [category]: Math.max(0, Math.round(amountUsd * 100) / 100) } }, updatedAt: serverTimestamp() },
+    { budgets: { byCategory: { [category]: clampNonNegUsd(amountUsd) } }, updatedAt: serverTimestamp() },
     { merge: true },
   );
 
@@ -31,7 +34,7 @@ export async function addSettlement(householdId: string, fromUid: string, toUid:
   await setDoc(doc(db, 'households', householdId, 'settlements', id), {
     fromUid,
     toUid,
-    amountUsd: Math.round(amountUsd * 100) / 100,
+    amountUsd: roundUsd(amountUsd),
     createdAt: new Date().toISOString(),
   });
 }

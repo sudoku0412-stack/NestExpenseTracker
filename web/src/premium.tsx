@@ -2,10 +2,12 @@ import { doc, getDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from './auth';
 import { db } from './firebase';
+import { promoGrantsPremium } from './lib/premiumGrant';
 
 export const API_BASE = 'https://nest-web-api.kmaz285.workers.dev';
 export const APP_STORE = 'https://apps.apple.com/us/app/nestexpensetracker/id6797353891';
 export const PLAY_STORE = 'https://play.google.com/store/apps/details?id=com.kaushikmajumder.receiptscanner';
+export { promoGrantsPremium } from './lib/premiumGrant';
 
 type Status = 'loading' | 'ready' | 'unavailable';
 interface PremiumValue { status: Status; premium: boolean }
@@ -25,11 +27,7 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
       let promo = false;
       try {
         const snap = await getDoc(doc(db, 'promoRedemptions', user.uid));
-        const d = snap.data();
-        if (d) {
-          const until = (d.freeUntil as { toDate?: () => Date } | null)?.toDate?.();
-          promo = d.grantsPro === true || (!!until && until.getTime() > Date.now());
-        }
+        promo = promoGrantsPremium(snap.data() as { grantsPro?: unknown; freeUntil?: { toDate?: () => Date } | null });
       } catch { /* no promo */ }
       let sub: boolean | null = null;
       try {

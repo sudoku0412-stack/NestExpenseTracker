@@ -8,6 +8,14 @@
  * here against Google's public keys, so the uid cannot be spoofed.
  */
 
+import {
+  corsHeaders,
+  entitlementIsActive,
+  extractJsonObject,
+  parseImageError,
+  PREMIUM_ENTITLEMENT_ID,
+} from './logic';
+
 interface Env {
   AI: { run: (model: string, input: unknown) => Promise<{ response?: string }> };
   FIREBASE_PROJECT_ID: string;
@@ -15,13 +23,16 @@ interface Env {
   REVENUECAT_API_KEY?: string;
 }
 
-const PREMIUM_ENTITLEMENT_ID = 'premium';
 const JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 const VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
-const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
 type Jwk = JsonWebKey & { kid: string };
 let jwksCache: { keys: Jwk[]; at: number } | null = null;
+
+/** Test-only: drop the JWKS cache so cases can swap keys. */
+export function resetJwksCache(): void {
+  jwksCache = null;
+}
 
 const b64urlToBytes = (s: string): Uint8Array => {
   const b = atob(s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '='));
@@ -39,7 +50,7 @@ async function getKeys(): Promise<Jwk[]> {
 }
 
 /** Returns the Firebase uid for a valid ID token, otherwise null. */
-async function verifyIdToken(token: string, projectId: string): Promise<string | null> {
+export async function verifyIdToken(token: string, projectId: string): Promise<string | null> {
   try {
     const [h, p, sig] = token.split('.');
     if (!h || !p || !sig) return null;
@@ -52,7 +63,7 @@ async function verifyIdToken(token: string, projectId: string): Promise<string |
     const jwk = (await getKeys()).find((k) => k.kid === header.kid);
     if (!jwk) return null;
     const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
-    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlToBytes(sig), new TextEncoder().encode(`${h}.${p}`));
+    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlToBytes(sig) as BufferSource, new TextEncoder().encode(`${h}.${p}`));
     return ok ? (claims.sub as string) : null;
   } catch {
     return null;
@@ -69,7 +80,7 @@ async function isPremium(uid: string, env: Env): Promise<boolean | null> {
   const body = (await res.json()) as { subscriber?: { entitlements?: Record<string, { expires_date: string | null }> } };
   const ent = body.subscriber?.entitlements?.[PREMIUM_ENTITLEMENT_ID];
   if (!ent) return false;
-  return ent.expires_date === null || new Date(ent.expires_date).getTime() > Date.now();
+  return entitlementIsActive(ent.expires_date);
 }
 
 const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSON object, no prose:
@@ -79,14 +90,7 @@ const PARSE_PROMPT = `You read a photo of a store receipt. Reply with ONLY a JSO
 Amounts are plain numbers in the receipt's own currency. Use a negative amount for discounts. If a value is unreadable use null.`;
 
 function cors(req: Request, env: Env): Record<string, string> {
-  const origin = req.headers.get('Origin') ?? '';
-  const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
-  return {
-    'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    Vary: 'Origin',
-  };
+  return corsHeaders(req.headers.get('Origin') ?? '', env.ALLOWED_ORIGINS);
 }
 
 const json = (data: unknown, status: number, headers: Record<string, string>) =>
@@ -119,15 +123,14 @@ export default {
         return json({ error: 'invalid body' }, 400, headers);
       }
       const image = body.image ?? '';
-      if (!/^data:image\/(png|jpe?g|webp);base64,/.test(image)) return json({ error: 'send a PNG, JPEG or WebP data URL' }, 400, headers);
-      if (image.length * 0.75 > MAX_IMAGE_BYTES) return json({ error: 'image too large' }, 413, headers);
+      const imageErr = parseImageError(image);
+      if (imageErr) return json({ error: imageErr.error }, imageErr.status, headers);
       try {
         const out = await env.AI.run(VISION_MODEL, { messages: [{ role: 'user', content: [{ type: 'text', text: PARSE_PROMPT }, { type: 'image_url', image_url: { url: image } }] }], max_tokens: 1500 });
         const text = out.response ?? '';
-        const start = text.indexOf('{');
-        const end = text.lastIndexOf('}');
-        if (start < 0 || end < start) return json({ error: 'could not read the receipt' }, 422, headers);
-        return json({ receipt: JSON.parse(text.slice(start, end + 1)) }, 200, headers);
+        const jsonText = extractJsonObject(text);
+        if (!jsonText) return json({ error: 'could not read the receipt' }, 422, headers);
+        return json({ receipt: JSON.parse(jsonText) }, 200, headers);
       } catch {
         return json({ error: 'could not read the receipt' }, 422, headers);
       }
