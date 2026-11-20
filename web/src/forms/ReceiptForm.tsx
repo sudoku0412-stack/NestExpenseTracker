@@ -8,9 +8,8 @@ import { useAuth } from '../auth';
 import { Modal, NO_REPEAT, RecurringFields, type RecurringState } from '../components';
 import { useData } from '../data';
 import { db } from '../firebase';
+import { buildReceiptSplit, resolveParticipantIds, type SplitMethod } from '../lib/receiptSplit';
 import { buildSchedule } from '../lib/schedule';
-
-type Method = 'equal' | 'percent' | 'amount' | 'shares';
 interface Item { key: string; name: string; amount: string; category: string }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -35,8 +34,8 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
   const [notes, setNotes] = useState(src?.notes ?? '');
   const [paidBy, setPaidBy] = useState(receipt?.paidBy ?? user?.uid ?? '');
   const [splitOn, setSplitOn] = useState(Boolean(receipt?.split?.enabled));
-  const [method, setMethod] = useState<Method>(receipt?.split?.method ?? 'equal');
-  const [people, setPeople] = useState<string[]>(receipt?.split?.participantIds?.map((p) => (p === 'self' ? user?.uid ?? p : p)) ?? members.map((m) => m.uid));
+  const [method, setMethod] = useState<SplitMethod>(receipt?.split?.method ?? 'equal');
+  const [people, setPeople] = useState<string[]>(receipt?.split?.participantIds ? resolveParticipantIds(receipt.split.participantIds, user?.uid ?? '') : members.map((m) => m.uid));
   const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(receipt?.split?.values ?? {}).map(([k, v]) => [k === 'self' ? user?.uid ?? k : k, String(v)])));
   const [repeat, setRepeat] = useState<RecurringState>(receipt?.recurring ? { enabled: true, frequency: receipt.recurring.frequency, months: '' } : NO_REPEAT);
   const [err, setErr] = useState('');
@@ -57,15 +56,9 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
     if (items.some((i) => !i.name.trim() || !(Number(i.amount) !== 0 && Number.isFinite(Number(i.amount))))) return setErr('Each item needs a name and an amount.');
     let split: Receipt['split'] | null = null;
     if (splitOn) {
-      if (people.length < 2) return setErr('Choose at least two people to split with.');
-      const v: Record<string, number> = {};
-      if (method !== 'equal') for (const p of people) v[p] = Number(vals[p]) || 0;
-      if (method === 'percent' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - 100) > 0.01) return setErr('Percentages must add up to 100.');
-      if (method === 'amount' && Math.abs(Object.values(v).reduce((a, b) => a + b, 0) - totalN) > 0.01) return setErr('Amounts must add up to the total.');
-      if (method === 'shares' && Object.values(v).every((x) => x <= 0)) return setErr('Give at least one person a share.');
-      // Amounts are typed in the entry currency; stored values are USD like the rest of the receipt.
-      const stored = method === 'amount' ? Object.fromEntries(Object.entries(v).map(([k, n]) => [k, round2(convertEntryToUsd(n, currency))])) : v;
-      split = { enabled: true, method, participantIds: people, ...(method === 'equal' ? {} : { values: stored }) };
+      const built = buildReceiptSplit(people, method, vals, totalN, currency);
+      if (!built.ok) return setErr(built.error);
+      split = built.split;
     }
     const repeating = buildSchedule(repeat.enabled, repeat.frequency, date, parseInt(repeat.months, 10) || 0, receipt?.recurring?.endDate);
     const now = new Date().toISOString();
@@ -137,7 +130,7 @@ export default function ReceiptForm({ receipt, draft, onClose }: { receipt?: Rec
           <label className="switch-row"><span>Split this expense</span><input type="checkbox" checked={splitOn} onChange={(e) => setSplitOn(e.target.checked)} /></label>
           {splitOn && (
             <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-              <select value={method} onChange={(e) => setMethod(e.target.value as Method)} aria-label="Split method">
+              <select value={method} onChange={(e) => setMethod(e.target.value as SplitMethod)} aria-label="Split method">
                 <option value="equal">Equally</option><option value="percent">By percentage</option><option value="amount">By exact amount</option><option value="shares">By shares</option>
               </select>
               {members.map((m) => (
