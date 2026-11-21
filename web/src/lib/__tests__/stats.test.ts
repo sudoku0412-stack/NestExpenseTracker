@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Income, Receipt } from '@app/types';
-import { computeBudgetSpend, dailySeries, inMonth, shiftMonth, topStores, trend, upcomingRecurring } from '../stats';
+import { computeBudgetSpend, dailySeries, dateLabel, daysInMonth, inMonth, monthName, shiftMonth, topStores, trend, upcomingRecurring } from '../stats';
 
 const r = (o: Partial<Receipt>): Receipt => ({ id: 'r', storeName: 'Shop', date: '2026-03-05', totalAmount: 100, category: 'Groceries', createdAt: '', updatedAt: '', ...o });
 const inc = (o: Partial<Income>): Income => ({ id: 'i', sourceName: 'Pay', date: '2026-03-01', amountUsd: 1000, category: 'Salary', earnedBy: 'u', createdAt: '', updatedAt: '', ...o });
@@ -19,6 +19,14 @@ describe('computeBudgetSpend', () => {
     expect(out.Recurring).toBe(150);
     expect(out.Groceries).toBe(100);
   });
+  it('falls back to the receipt category when line items sum to ~0 (placeholder rows)', () => {
+    const out = computeBudgetSpend([r({
+      totalAmount: 80,
+      category: 'Dining',
+      lineItems: [{ id: 'z', name: 'pending', amount: 0, category: 'Groceries' }],
+    })]);
+    expect(out).toEqual({ Dining: 80 });
+  });
 });
 
 describe('month helpers', () => {
@@ -35,6 +43,13 @@ describe('month helpers', () => {
     expect(d[1].spent).toBe(10);
     expect(d[27].total).toBe(15);
   });
+  it('uses civil days in leap years and skips unparseable dates', () => {
+    expect(daysInMonth(2024, 2)).toBe(29);
+    expect(daysInMonth(2026, 2)).toBe(28);
+    const d = dailySeries([r({ date: 'not-a-date', totalAmount: 99 }), r({ date: '2024-02-29', totalAmount: 7 })], 2024, 2);
+    expect(d).toHaveLength(29);
+    expect(d[28]).toEqual({ day: 29, spent: 7, total: 7 });
+  });
 });
 
 describe('trend and stores', () => {
@@ -46,6 +61,16 @@ describe('trend and stores', () => {
   it('groups stores case-insensitively and sorts by total', () => {
     const s = topStores([r({ storeName: 'Costco', totalAmount: 50 }), r({ storeName: 'costco ', totalAmount: 70 }), r({ storeName: 'Aldi', totalAmount: 90 })]);
     expect(s.map((x) => [x.store, x.total, x.count])).toEqual([['Costco', 120, 2], ['Aldi', 90, 1]]);
+  });
+  it('labels a blank store Unknown and honors the limit', () => {
+    const s = topStores([r({ storeName: '  ', totalAmount: 5 }), r({ storeName: 'Aldi', totalAmount: 1 })], 1);
+    expect(s).toHaveLength(1);
+    expect(s[0]).toMatchObject({ store: 'Unknown', total: 5, count: 1 });
+  });
+  it('formats a civil date and a month label', () => {
+    expect(dateLabel('2026-03-05')).toBe('Mar 5, 2026');
+    expect(dateLabel('nope')).toBe('nope');
+    expect(monthName(2026, 2)).toBe('February 2026');
   });
   it('lists only active recurring templates, soonest first', () => {
     const out = upcomingRecurring([

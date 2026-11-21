@@ -8,9 +8,11 @@ import {
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { CurrencyCode } from '@app/lib/currency';
-import type { Income, InvestmentAccount, InvestmentKind, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
+import type { Income, InvestmentAccount, InvestmentSnapshot, Receipt, SavingsGoal, Settlement } from '@app/types';
 import { useAuth } from './auth';
 import { db } from './firebase';
+import { budgetAlertsEnabled, memberDisplayName } from './lib/householdFields';
+import { mapWebInvestmentAccount, mapWebInvestmentSnapshot } from './lib/investmentMap';
 
 export interface Member {
   uid: string;
@@ -149,18 +151,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setInvestmentSnapshots([]);
     if (!user) return;
     const base = doc(db, 'users', user.uid);
-    const kinds: InvestmentKind[] = ['stocks', 'etf', 'crypto', 'retirement', 'savings', 'other'];
     const a = onSnapshot(collection(base, 'investmentAccounts'), (snap) =>
-      setInvestments(snap.docs.map((x) => {
-        const d = x.data();
-        return { id: x.id, name: str(d.name), kind: kinds.includes(d.kind) ? d.kind : 'other', contributedUsd: num(d.contributedUsd), valueUsd: num(d.valueUsd), notes: d.notes ?? undefined, createdAt: str(d.createdAt), updatedAt: str(d.updatedAt) };
-      })),
+      setInvestments(snap.docs.map((x) => mapWebInvestmentAccount(x.id, x.data() as Record<string, unknown>))),
       () => undefined);
     const s = onSnapshot(collection(base, 'investmentSnapshots'), (snap) =>
-      setInvestmentSnapshots(snap.docs.map((x) => {
-        const d = x.data();
-        return { id: x.id, accountId: str(d.accountId), date: str(d.date), valueUsd: num(d.valueUsd), contributedUsd: num(d.contributedUsd), createdAt: str(d.createdAt) };
-      })),
+      setInvestmentSnapshots(snap.docs.map((x) => mapWebInvestmentSnapshot(x.id, x.data() as Record<string, unknown>))),
       () => undefined);
     return () => { a(); s(); };
   }, [user]);
@@ -183,15 +178,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         async (snap) => {
           const d = snap.data() ?? {};
           setBudgets((d.budgets?.byCategory as Record<string, number>) ?? {});
-          setBudgetAlerts(d.budgets?.alertsEnabled !== false);
+          setBudgetAlerts(budgetAlertsEnabled(d.budgets?.alertsEnabled));
           setCustomCategories(Array.isArray(d.customCategories) ? d.customCategories : []);
           const uids: string[] = Array.isArray(d.memberUids) ? d.memberUids : [];
           const people = await Promise.all(
             uids.map(async (uid) => {
               try {
                 const u = (await getDoc(doc(db, 'users', uid))).data();
-                const email = (u?.email as string | null) ?? null;
-                return { uid, name: str(u?.displayName) || email?.split('@')[0] || 'Member', email };
+                return { uid, ...memberDisplayName(u) };
               } catch {
                 return { uid, name: 'Member', email: null };
               }
