@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { convertEntryToUsd, convertFromUsd, currencyDecimals } from '@app/lib/currency';
 import type { SavingsGoal } from '@app/types';
 import { useData } from '../data';
+import { nextAllocatedUsd } from '../lib/householdFields';
 import { deleteGoal, saveGoal } from '../lib/writes';
 import { useMoney } from '../money';
 
@@ -16,7 +17,7 @@ export default function Goals() {
   async function move(g: SavingsGoal, sign: 1 | -1) {
     const n = Number(adjust[g.id]);
     if (!householdId || !(n > 0)) return;
-    await saveGoal(householdId, { ...g, allocatedUsd: g.allocatedUsd + sign * convertEntryToUsd(n, currency) });
+    await saveGoal(householdId, { ...g, allocatedUsd: nextAllocatedUsd(g.allocatedUsd, sign * convertEntryToUsd(n, currency)) });
     setAdjust((a) => ({ ...a, [g.id]: '' }));
   }
 

@@ -5,9 +5,15 @@ import {
   SavingsGoal,
   HouseholdMember,
   InvestmentAccount,
-  InvestmentKind,
   InvestmentSnapshot,
 } from '../types';
+import {
+  mapInvestmentAccountFromCloud,
+  mapInvestmentSnapshotFromCloud,
+  missingCloudIds,
+  serializeInvestmentAccount,
+  serializeInvestmentSnapshot,
+} from './investmentCloud';
 import {
   applyCustomCategories,
   clearPendingCustomCategoryChanges,
@@ -903,8 +909,6 @@ export function subscribeToHouseholdSavingsGoals(
 // SQLite writes shadow-write to the cloud, and a listener applies remote
 // changes back (skipping this device's own pending writes).
 
-const INVESTMENT_KINDS: InvestmentKind[] = ['stocks', 'etf', 'crypto', 'retirement', 'savings', 'other'];
-
 export async function syncInvestmentAccountToCloud(account: InvestmentAccount, uid: string): Promise<void> {
   const firestore = loadFirestore();
   if (!firestore || !uid) return;
@@ -914,15 +918,7 @@ export async function syncInvestmentAccountToCloud(account: InvestmentAccount, u
       .doc(uid)
       .collection('investmentAccounts')
       .doc(account.id)
-      .set({
-        name: account.name,
-        kind: account.kind,
-        contributedUsd: account.contributedUsd,
-        valueUsd: account.valueUsd,
-        notes: account.notes ?? null,
-        createdAt: account.createdAt,
-        updatedAt: account.updatedAt,
-      });
+      .set(serializeInvestmentAccount(account));
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[cloudSync] syncInvestmentAccountToCloud failed:', (e as Error)?.message);
@@ -938,13 +934,7 @@ export async function syncInvestmentSnapshotToCloud(snapshot: InvestmentSnapshot
       .doc(uid)
       .collection('investmentSnapshots')
       .doc(snapshot.id)
-      .set({
-        accountId: snapshot.accountId,
-        date: snapshot.date,
-        valueUsd: snapshot.valueUsd,
-        contributedUsd: snapshot.contributedUsd,
-        createdAt: snapshot.createdAt,
-      });
+      .set(serializeInvestmentSnapshot(snapshot));
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[cloudSync] syncInvestmentSnapshotToCloud failed:', (e as Error)?.message);
@@ -985,8 +975,14 @@ async function uploadMissingInvestments(uid: string): Promise<void> {
   ]);
   const haveAccounts = new Set(cloudAccounts.docs.map((d) => d.id));
   const haveSnaps = new Set(cloudSnaps.docs.map((d) => d.id));
-  for (const a of accounts) if (!haveAccounts.has(a.id)) await syncInvestmentAccountToCloud(a, uid);
-  for (const sn of snapshots) if (!haveSnaps.has(sn.id)) await syncInvestmentSnapshotToCloud(sn, uid);
+  for (const id of missingCloudIds(accounts.map((a) => a.id), haveAccounts)) {
+    const a = accounts.find((x) => x.id === id);
+    if (a) await syncInvestmentAccountToCloud(a, uid);
+  }
+  for (const id of missingCloudIds(snapshots.map((s) => s.id), haveSnaps)) {
+    const sn = snapshots.find((x) => x.id === id);
+    if (sn) await syncInvestmentSnapshotToCloud(sn, uid);
+  }
 }
 
 export function subscribeToInvestments(uid: string): (() => void) | null {
@@ -1018,16 +1014,7 @@ export function subscribeToInvestments(uid: string): (() => void) | null {
             }
             const d = change.doc.data();
             await db.upsertInvestmentAccountFromCloud(
-              {
-                id: change.doc.id,
-                name: (d.name as string) || '',
-                kind: INVESTMENT_KINDS.includes(d.kind as InvestmentKind) ? (d.kind as InvestmentKind) : 'other',
-                contributedUsd: (d.contributedUsd as number) || 0,
-                valueUsd: (d.valueUsd as number) || 0,
-                notes: (d.notes as string | null) ?? undefined,
-                createdAt: (d.createdAt as string) || new Date().toISOString(),
-                updatedAt: (d.updatedAt as string) || new Date().toISOString(),
-              },
+              mapInvestmentAccountFromCloud(change.doc.id, d as Record<string, unknown>, new Date().toISOString()),
               uid,
             );
           } catch (e) {
@@ -1051,14 +1038,7 @@ export function subscribeToInvestments(uid: string): (() => void) | null {
             }
             const d = change.doc.data();
             await db.upsertInvestmentSnapshotFromCloud(
-              {
-                id: change.doc.id,
-                accountId: (d.accountId as string) || '',
-                date: (d.date as string) || '',
-                valueUsd: (d.valueUsd as number) || 0,
-                contributedUsd: (d.contributedUsd as number) || 0,
-                createdAt: (d.createdAt as string) || new Date().toISOString(),
-              },
+              mapInvestmentSnapshotFromCloud(change.doc.id, d as Record<string, unknown>, new Date().toISOString()),
               uid,
             );
           } catch (e) {
